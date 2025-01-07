@@ -72,6 +72,24 @@ The .env file is used for local configuration and is not committed to the reposi
 1. Modify the values to match your environment
 1. Never commit the .env file (it's included in .gitignore)
 
+## Development Environment Setup
+
+After configuring your .env file, follow these steps to set up the development environment:
+
+1. Make the development variables script executable:
+    ```bash
+    chmod +x create_dev_vars.py
+    ```
+
+2. Run the script to generate Terraform variables for the dev environment:
+    ```bash
+    ./create_dev_vars.py
+    ```
+
+This will create a `terraform.tfvars` file in the `environments/dev` directory with your specific configuration values. The generated file is excluded from version control for security reasons.
+
+A `terraform.tfvars.example` file is provided in the repository as a template. You can also use this as a reference for the required variables.
+
 ## Maintainer
 
 Kevin Ritchey (kevin@fortysheep.com)

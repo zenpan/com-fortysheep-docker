@@ -111,48 +111,11 @@ terraform.rc
         f.write(gitignore_content)
 
 def create_readme():
-    """Create README.md with template variables and detailed setup instructions"""
+    """Create README.md with deployment and management instructions"""
     readme_content = f"""# {COMPANY_NAME} {PROJECT_NAME}
 
 This repository contains the Terraform configurations for the {COMPANY_NAME} {PROJECT_NAME}.
 
-## Initial Directory Structure Setup
-
-> **Note:** This section is only relevant for maintainers of this project.
-> If you are not a maintainer, you can ignore this section and proceed to the [Structure](#Structure) section.
-
-1. Ensure Python 3.6+ is installed:
-   ```bash
-   python3 --version
-   ```
-2. Install the required Python package:
-    ```bash
-    pip install python-dotenv
-    # or
-    pip3 install python-dotenv
-    # or if you need user-level installation
-    pip install --user python-dotenv
-    ```
-3. Create a .env file in the root directory with your specific values:
-    ```
-    COMPANY_NAME=YourCompany
-    AUTHOR_NAME=Your Name
-    AUTHOR_EMAIL=your.email@example.com
-    PROJECT_NAME=Your Project Name
-    TERRAFORM_VERSION=1.7.0
-    AWS_PROVIDER_VERSION=5.31
-    STATE_BUCKET_NAME=your-terraform-state-bucket
-    DYNAMODB_TABLE_NAME=your-terraform-locks-table
-    ```
-4. Make the setup script executable:
-    ```bash
-    chmod +x setup.py
-    ```
-5. Run the setup script to create the project structure:
-    ```bash
-    ./setup.py
-    ```
-    
 ## Structure
 
 - `environments/`: Environment-specific configurations
@@ -168,8 +131,6 @@ This repository contains the Terraform configurations for the {COMPANY_NAME} {PR
 
 ## Prerequisites
 
-- Python 3.6+
-- python-dotenv package
 - Terraform >= {TERRAFORM_VERSION}
 - AWS Provider ~> {AWS_PROVIDER_VERSION}
 - AWS CLI configured with appropriate credentials
@@ -179,14 +140,7 @@ This repository contains the Terraform configurations for the {COMPANY_NAME} {PR
 State is stored in S3 bucket: {STATE_BUCKET_NAME}
 State locking is managed through DynamoDB table: {DYNAMODB_TABLE_NAME}
 
-## Environment Configuration
-The .env file is used for local configuration and is not committed to the repository for security reasons. Make sure to:
-
-1. Copy the example values above to a new .env file
-1. Modify the values to match your environment
-1. Never commit the .env file (it's included in .gitignore)
-
-## Maintainer
+## Current Maintainer
 
 {AUTHOR_NAME} ({AUTHOR_EMAIL})
 
@@ -245,9 +199,9 @@ def main():
                 print("Setup cancelled.")
                 return 0
 
-        create_directory_structure()
-        create_gitignore()  # Will overwrite
-        create_readme()     # Will overwrite
+        # create_directory_structure()
+        # create_gitignore()  # Will overwrite
+        # create_readme()     # Will overwrite
         print(f"\nProject structure created/updated successfully in {SCRIPT_DIR}")
         print("Note: .gitignore and README.md were overwritten if they existed.")
     except Exception as e:
