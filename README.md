@@ -11,7 +11,7 @@ This repository contains the Terraform configurations for the FortySheep Docker 
    ```bash
    python3 --version
    ```
-2. Install the required Python package:
+1. Install the required Python package:
     ```bash
     pip install python-dotenv
     # or
@@ -19,7 +19,7 @@ This repository contains the Terraform configurations for the FortySheep Docker 
     # or if you need user-level installation
     pip install --user python-dotenv
     ```
-3. Create a .env file in the root directory with your specific values:
+1. Create a .env file in the root directory with your specific values:
     ```
     COMPANY_NAME=YourCompany
     AUTHOR_NAME=Your Name
@@ -30,11 +30,11 @@ This repository contains the Terraform configurations for the FortySheep Docker 
     STATE_BUCKET_NAME=your-terraform-state-bucket
     DYNAMODB_TABLE_NAME=your-terraform-locks-table
     ```
-4. Make the setup script executable:
+1. Make the setup script executable:
     ```bash
     chmod +x setup.py
     ```
-5. Run the setup script to create the project structure:
+1. Run the setup script to create the project structure:
     ```bash
     ./setup.py
     ```
@@ -78,12 +78,12 @@ After configuring your .env file, follow these steps to set up the development e
 
 1. Make the development variables script executable:
     ```bash
-    chmod +x create_dev_vars.py
+    chmod +x create_dev.py
     ```
 
-2. Run the script to generate Terraform variables for the dev environment:
+1. Run the script to generate Terraform variables for the dev environment:
     ```bash
-    ./create_dev_vars.py
+    ./create_dev.py
     ```
 
 This will create a `terraform.tfvars` file in the `environments/dev` directory with your specific configuration values. The generated file is excluded from version control for security reasons.
