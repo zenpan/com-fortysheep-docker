@@ -123,6 +123,7 @@ This repository contains the Terraform configurations for the {COMPANY_NAME} {PR
     pip install --user python-dotenv
     ```
 3. Create a .env file in the root directory with your specific values:
+    ```
     COMPANY_NAME=YourCompany
     AUTHOR_NAME=Your Name
     AUTHOR_EMAIL=your.email@example.com
@@ -131,6 +132,7 @@ This repository contains the Terraform configurations for the {COMPANY_NAME} {PR
     AWS_PROVIDER_VERSION=5.31
     STATE_BUCKET_NAME=your-terraform-state-bucket
     DYNAMODB_TABLE_NAME=your-terraform-locks-table
+    ```
 4. Make the setup script executable:
     ```bash
     chmod +x setup.py
