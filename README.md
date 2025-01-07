@@ -2,7 +2,10 @@
 
 This repository contains the Terraform configurations for the FortySheep Docker Infrastructure.
 
-## Initial Setup
+## Initial Directory Structure Setup
+
+> **Note:** This section is only relevant for maintainers of this project.
+> If you are not a maintainer, you can ignore this section and proceed to the [Structure](#Structure) section.
 
 1. Ensure Python 3.6+ is installed:
    ```bash
