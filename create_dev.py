@@ -52,6 +52,7 @@ vpc_cidr     = "{os.getenv('VPC_CIDR')}"
 owner        = "{os.getenv('OWNER')}"
 team         = "{os.getenv('TEAM')}"
 availability_zone = "{os.getenv('AWS_AZ')}"
+key_name     = "{os.getenv('AWS_KEY')}"
 """
     
     # Ensure the directory exists

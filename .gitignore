@@ -8,6 +8,9 @@
 # backend.tf files
 environments/*/backend.tf
 
+# lock files
+*.lock.hcl
+
 # Crash log files
 crash.log
 crash.*.log

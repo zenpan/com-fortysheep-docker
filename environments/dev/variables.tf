@@ -8,6 +8,11 @@ variable "availability_zone" {
   type        = string
 }
 
+variable "key_name" {
+  description = "Name of the SSH key pair"
+  type        = string
+}
+
 variable "project_name" {
   description = "Name of the project"
   type        = string
