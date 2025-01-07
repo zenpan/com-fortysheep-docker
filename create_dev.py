@@ -51,6 +51,7 @@ company_name = "{os.getenv('COMPANY_NAME')}"
 vpc_cidr     = "{os.getenv('VPC_CIDR')}"
 owner        = "{os.getenv('OWNER')}"
 team         = "{os.getenv('TEAM')}"
+availability_zone = "{os.getenv('AWS_AZ')}"
 """
     
     # Ensure the directory exists

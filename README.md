@@ -29,6 +29,12 @@ This repository contains the Terraform configurations for the FortySheep Docker 
     AWS_PROVIDER_VERSION=5.31
     STATE_BUCKET_NAME=your-terraform-state-bucket
     DYNAMODB_TABLE_NAME=your-terraform-locks-table
+    AWS_REGION=us-east-1
+    AWS_AZ=us-east-1a
+    ENVIRONMENT=dev
+    VPC_CIDR=10.0.0.0/16
+    OWNER=your.email@example.com
+    TEAM=DevOps
     ```
 1. Make the setup script executable:
     ```bash
