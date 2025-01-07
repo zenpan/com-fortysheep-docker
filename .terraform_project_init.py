@@ -3,6 +3,8 @@
 Author : Kevin Ritchey <kevin@fortysheep.com>
 Date   : 2025-01-07
 Purpose: Create initial Terraform project structure
+Warning: You only need to run this script if you are
+         a maintainer of this project and need to recreate the structure.
 """
 
 import datetime
@@ -42,16 +44,20 @@ def create_versions_tf(env_path):
         f.write(versions_content)
 
 def create_directory_structure():
-    """Create the basic directory structure"""
+    """Create the basic directory structure, skipping existing files"""
     # Create environment directories
     for env in ['prod', 'dev', 'staging']:
         path = SCRIPT_DIR / 'environments' / env
         path.mkdir(parents=True, exist_ok=True)
         # Create environment files
         for file in ['main.tf', 'variables.tf', 'outputs.tf', 'backend.tf']:
-            (path / file).touch()
-        # Create versions.tf with content
-        create_versions_tf(path)
+            file_path = path / file
+            if not file_path.exists():
+                file_path.touch()
+        # Create versions.tf only if it doesn't exist
+        versions_path = path / 'versions.tf'
+        if not versions_path.exists():
+            create_versions_tf(path)
 
     # Create module directories
     for module in ['vpc', 'ecs', 'rds', 'security', 'iam']:
@@ -59,7 +65,9 @@ def create_directory_structure():
         path.mkdir(parents=True, exist_ok=True)
         # Create module files
         for file in ['main.tf', 'variables.tf', 'outputs.tf', 'README.md']:
-            (path / file).touch()
+            file_path = path / file
+            if not file_path.exists():
+                file_path.touch()
 
 def create_gitignore():
     """Create .gitignore file"""
@@ -108,7 +116,7 @@ def create_readme():
 
 This repository contains the Terraform configurations for the {COMPANY_NAME} {PROJECT_NAME}.
 
-## Initial Setup
+## Initial Directory Structure Setup
 
 1. Ensure Python 3.6+ is installed:
    ```bash
@@ -209,10 +217,36 @@ SOFTWARE.
 def main():
     """Main function to set up the project structure"""
     try:
+        # Check if any files/directories would be affected
+        existing_files = []
+        for env in ['prod', 'dev', 'staging']:
+            env_path = SCRIPT_DIR / 'environments' / env
+            if env_path.exists():
+                existing_files.append(f"environments/{env}")
+                for file in env_path.glob('*'):
+                    existing_files.append(f"  {file.relative_to(SCRIPT_DIR)}")
+
+        for module in ['vpc', 'ecs', 'rds', 'security', 'iam']:
+            module_path = SCRIPT_DIR / 'modules' / module
+            if module_path.exists():
+                existing_files.append(f"modules/{module}")
+                for file in module_path.glob('*'):
+                    existing_files.append(f"  {file.relative_to(SCRIPT_DIR)}")
+
+        if existing_files:
+            print("The following existing files/directories will be preserved:")
+            for file in existing_files:
+                print(file)
+            response = input("\nContinue? Only .gitignore and README.md will be overwritten. [y/N]: ")
+            if response.lower() != 'y':
+                print("Setup cancelled.")
+                return 0
+
         create_directory_structure()
-        create_gitignore()
-        create_readme()
-        print(f"Project structure created successfully in {SCRIPT_DIR}")
+        create_gitignore()  # Will overwrite
+        create_readme()     # Will overwrite
+        print(f"\nProject structure created/updated successfully in {SCRIPT_DIR}")
+        print("Note: .gitignore and README.md were overwritten if they existed.")
     except Exception as e:
         print(f"Error creating project structure: {e}")
         return 1
