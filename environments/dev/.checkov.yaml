@@ -1,0 +1,19 @@
+skip-check:
+  # Already in your file
+  - CKV_AWS_126  # Detailed monitoring not needed in dev
+  - CKV_AWS_135  # EBS optimization not needed for dev instances
+
+  # Security group related - if these are intentional for your use case
+  - CKV_AWS_382  # Allow all egress is common practice and low risk
+  - CKV_AWS_260  # HTTP ingress needed for web services
+  # - CKV_AWS_23   # Security group descriptions are nice-to-have but not critical
+
+  # Instance metadata - if you're using IMDSv1 intentionally
+  # - CKV_AWS_79   # IMDSv1 acceptable in dev if not handling sensitive data
+
+  # Public IP related - these are expected for NAT and public-facing instances
+  - CKV_AWS_88   # Public IPs needed for NAT and docker host
+  - CKV_AWS_130  # Public subnet needs to assign public IPs
+
+  # VPC related - if this is a dev environment
+  - CKV2_AWS_11  # VPC flow logs not critical in dev

@@ -42,3 +42,21 @@ variable "team" {
   description = "Team responsible for the resources"
   type        = string
 }
+
+variable "docker_instance_type" {
+  description = "Instance type for the Docker host"
+  type        = string
+  default     = "t4g.medium"
+}
+
+variable "nat_instance_type" {
+  description = "Instance type for the NAT instance"
+  type        = string
+  default     = "t4g.nano"
+}
+
+variable "database_instance_type" {
+  description = "Instance type for the database host"
+  type        = string
+  default     = "t4g.medium"
+}
