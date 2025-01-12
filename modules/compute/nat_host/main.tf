@@ -1,5 +1,3 @@
-# modules/compute/nat_host/main.tf
-
 resource "aws_security_group" "nat" {
   name        = "${var.name_prefix}-nat-sg"
   description = "Security group for NAT instance"
@@ -49,18 +47,18 @@ resource "aws_security_group" "nat" {
 
 resource "aws_instance" "nat" {
   ami                         = var.ami_id
-  instance_type              = var.instance_type
-  key_name                   = var.key_name
-  subnet_id                  = var.public_subnet_id
-  iam_instance_profile       = var.ssm_role_name
+  instance_type               = var.instance_type
+  key_name                    = var.key_name
+  subnet_id                   = var.public_subnet_id
+  iam_instance_profile        = var.ssm_role_name
   associate_public_ip_address = true
-  source_dest_check          = false
-  vpc_security_group_ids     = [aws_security_group.nat.id]
+  source_dest_check           = false
+  vpc_security_group_ids      = [aws_security_group.nat.id]
 
   metadata_options {
     http_tokens                 = "required"
     http_put_response_hop_limit = 1
-    http_endpoint              = "enabled"
+    http_endpoint               = "enabled"
   }
 
   user_data = templatefile(

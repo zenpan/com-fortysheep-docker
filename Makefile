@@ -45,7 +45,7 @@ destroy:  ## Destroy terraform resources
 	terraform destroy -auto-approve
 
 fmt:  ## Format terraform files
-	terraform fmt
+	terraform fmt -recursive
 
 help:  ## Show this help.
 	@echo "Available commands:"

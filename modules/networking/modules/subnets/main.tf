@@ -1,6 +1,5 @@
 # Public Subnet
 resource "aws_subnet" "public" {
-  # vpc_id                  = aws_vpc.main.id
   vpc_id                  = var.vpc_id
   cidr_block              = cidrsubnet(var.vpc_cidr, 4, 0)
   availability_zone       = var.availability_zone

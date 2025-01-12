@@ -2,8 +2,7 @@ locals {
   name_prefix = "${var.project_name}-${var.environment}"
 
   # For the NAT instance security group
-  # myip = "${chomp(data.http.myip.body)}/32"
-  myip = "${chomp(data.http.myip.response_body)}/32" # Changed from body to response_body
+  myip = "${chomp(data.http.myip.response_body)}/32"
 
   # Common tags if not defined in variables
   common_tags = merge(

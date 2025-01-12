@@ -2,7 +2,6 @@
 resource "aws_security_group" "docker" {
   name        = "docker-host"
   description = "Security group for docker host"
-  # vpc_id      = aws_vpc.main.id
   vpc_id      = var.vpc_id
 
   # Allow ICMP from anywhere
@@ -19,7 +18,6 @@ resource "aws_security_group" "docker" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    # cidr_blocks = [local.myip]
     cidr_blocks = [var.allowed_ip]
     description = "Allow SSH from my IP address"
   }
@@ -51,8 +49,6 @@ resource "aws_security_group" "docker" {
     description = "Allow all outbound traffic"
   }
 
-  # tags = var.common_tags
-  
   tags = merge(
     var.common_tags,
     {
@@ -65,11 +61,9 @@ resource "aws_security_group" "docker" {
 
 # Docker host EC2 instance
 resource "aws_instance" "docker" {
-  # ami           = data.aws_ami.ubuntu.id
   ami           = var.ami_id
   instance_type = var.docker_instance_type
 
-  # subnet_id                   = aws_subnet.public.id
   subnet_id                   = var.subnet_id
   vpc_security_group_ids      = [aws_security_group.docker.id]
   associate_public_ip_address = true
@@ -78,7 +72,6 @@ resource "aws_instance" "docker" {
   key_name = var.key_name
 
   # Use the same SSM role for management
-  # iam_instance_profile = data.aws_iam_role.existing_ssm_role.name
   iam_instance_profile = var.iam_instance_profile
 
   # Ensure IMDSv2 is enabled
