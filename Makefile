@@ -54,12 +54,15 @@ help:  ## Show this help.
 init:  ## Initialize terraform
 	terraform init
 
-ip:  ## Show the IP address of NAT instance
-	terraform output nat_instance_public_ip
+inventory:  ## (Re)Create Ansible inventory file
+	@python3 create-inventory.py
+
+ip:  ## Show the IP address of NAT host
+	terraform output nat_host_public_ip
 
 # If you want to get just the value without the formatting:
-ip-raw:
-	terraform output -raw nat_instance_public_ip
+ip-raw:  ## Show the IP address of NAT host (raw)
+	terraform output -raw nat_host_public_ip
 
 outputs:  ## Show terraform outputs
 	terraform output

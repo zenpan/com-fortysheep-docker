@@ -42,3 +42,6 @@ terraform.rc
 
 # Exclude old files while I'm moving things around
 *.old
+
+# Ansible inventory files
+inventory.yml
