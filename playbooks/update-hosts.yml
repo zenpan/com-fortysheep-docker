@@ -1,0 +1,102 @@
+---
+- name: Update OS and reboot if necessary
+  hosts: all
+  gather_facts: true
+  become: true
+  tasks:
+
+    - name: Update the OS for RedHat based systems
+      ansible.builtin.dnf:
+        name: "*"
+        state: latest
+        update_only: true
+      when: ansible_os_family == 'RedHat'
+
+    - name: Ensure yum-utils and nvme-cli are installed
+      ansible.builtin.dnf:
+        name: "{{ item }}"
+        state: present
+      when: ansible_os_family == 'RedHat'
+      loop:
+        - yum-utils
+        - nvme-cli
+
+    - name: Check if reboot is required using needs-restarting
+      ansible.builtin.command:
+        cmd: needs-restarting -r
+      register: reboot_required
+      failed_when: false
+      changed_when: false
+
+    - name: Display reboot requirement status
+      ansible.builtin.debug:
+        msg: "System requires reboot: {{ 'Yes' if reboot_required.rc == 1 else 'No' }}"
+
+    # Optionally reboot if required
+    - name: Reboot system if required
+      ansible.builtin.reboot:
+        msg: "Rebooting system due to package updates"
+        connect_timeout: 5
+        reboot_timeout: 300
+        pre_reboot_delay: 0
+        post_reboot_delay: 30
+      when: reboot_required.rc == 1
+
+    - name: Ensure maintenance pkgs are installed on Debian based systems
+      ansible.builtin.apt:
+        name: "{{ item }}"
+        state: present
+      when: ansible_os_family == 'Debian'
+      with_items:
+        - unattended-upgrades
+        - update-notifier-common
+        - nvme-cli
+        - needrestart
+
+    - name: Update OS when host is Debian based
+      ansible.builtin.apt:
+        upgrade: dist
+      when: ansible_os_family == 'Debian'
+
+    - name: Check if reboot is required
+      ansible.builtin.stat:
+        path: /var/run/reboot-required
+      register: reboot_required
+
+    - name: Display reboot requirement status
+      ansible.builtin.debug:
+        msg: "System requires reboot: {{ 'Yes' if reboot_required.stat.exists else 'No' }}"
+
+    # Optionally show why reboot is required
+    - name: Show packages requiring reboot
+      ansible.builtin.command:
+        cmd: cat /var/run/reboot-required.pkgs
+      register: reboot_packages
+      when: reboot_required.stat.exists
+      changed_when: false
+
+    - name: Display packages requiring reboot
+      ansible.builtin.debug:
+        msg: "Packages requiring reboot:\n{{ reboot_packages.stdout_lines | default([]) }}"
+      when: reboot_required.stat.exists
+
+    # Optional: Perform the reboot if required
+    - name: Reboot system if required
+      ansible.builtin.reboot:
+        msg: "Rebooting system due to package updates"
+        connect_timeout: 5
+        reboot_timeout: 300
+        pre_reboot_delay: 0
+        post_reboot_delay: 30
+      when: reboot_required.stat.exists
+
+    - name: Check if reboot is required using needrestart
+      ansible.builtin.command:
+        cmd: needrestart -b
+      register: reboot_required
+      failed_when: false
+      changed_when: false
+
+    - name: Display reboot requirement status
+      ansible.builtin.debug:
+        msg: "System requires reboot: {{ 'Yes' if reboot_required.rc >= 1 else 'No' }}"

@@ -6,7 +6,7 @@
 apt-get update
 
 # Install Python3 and related tools (required for Ansible)
-apt-get install -y python3 python3-pip
+apt-get install -y python3 python3-pip nvme-cli needrestart
 
 # Create consistent device mapping for data volume
 # mkdir -p /etc/udev/rules.d

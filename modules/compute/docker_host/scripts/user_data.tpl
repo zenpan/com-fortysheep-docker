@@ -1,7 +1,7 @@
 #!/bin/bash
 apt-get update -y
 # install tools needed by Ansible controller
-apt-get install -y python3 python3-pip
+apt-get install -y python3 python3-pip nvme-cli needrestart
 
 cat << 'EOF' >> /home/ubuntu/.bash_aliases
 # EC2 Instance Metadata Service v2 helper functions

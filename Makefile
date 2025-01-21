@@ -70,5 +70,8 @@ outputs:  ## Show terraform outputs
 plan:  ## Show terraform plan
 	terraform plan
 
+update-hosts:  ## Update OS and reboot if necessary
+	@ansible-playbook -i inventory.yml playbooks/update-hosts.yml
+
 validate:  ## Validate terraform configuration
 	terraform validate
