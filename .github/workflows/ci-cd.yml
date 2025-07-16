@@ -179,7 +179,7 @@ jobs:
 
     steps:
       - name: Download Security Reports
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: security-reports
           path: security-reports/
