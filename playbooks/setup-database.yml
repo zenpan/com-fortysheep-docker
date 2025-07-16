@@ -236,7 +236,7 @@
 
     - name: Initialize PostgreSQL data directory
       ansible.builtin.command:
-        cmd: "sudo -u postgres /usr/lib/postgresql/{{ pg_version }}/bin/initdb -D {{ data_mount_point }}/postgresql"
+        cmd: "/usr/lib/postgresql/{{ pg_version }}/bin/initdb -D {{ data_mount_point }}/postgresql"
       when: not postgresql_initialized.stat.exists
       become: true
       become_user: postgres
@@ -307,21 +307,28 @@
         query: "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1')"
       failed_when: false
 
-    - name: Check if PostgreSQL postgres user password is set
-      ansible.builtin.shell:
-        cmd: "set -o pipefail && echo 'SELECT 1' | sudo -u postgres psql -v ON_ERROR_STOP=1 2>/dev/null"
-      register: postgres_password_check
-      failed_when: false
-      changed_when: false
-      environment:
-        PGPASSWORD: "{{ postgres_password }}"
+    - name: Check if PostgreSQL postgres password flag exists
+      ansible.builtin.stat:
+        path: "{{ data_mount_point }}/postgresql/.postgres_password_set"
+      register: postgres_password_flag
 
     - name: Set PostgreSQL postgres user password
       ansible.builtin.command:
-        cmd: "sudo -u postgres psql -c \"ALTER USER postgres PASSWORD '{{ postgres_password }}';\""
-      when: postgres_password_check.rc != 0
+        cmd: "psql -c \"ALTER USER postgres PASSWORD '{{ postgres_password }}';\""
+      when: not postgres_password_flag.stat.exists
       no_log: true
       changed_when: true
+      become: true
+      become_user: postgres
+
+    - name: Create PostgreSQL password flag file
+      ansible.builtin.file:
+        path: "{{ data_mount_point }}/postgresql/.postgres_password_set"
+        state: touch
+        owner: postgres
+        group: postgres
+        mode: '0600'
+      when: not postgres_password_flag.stat.exists
 
     - name: Create MariaDB application database
       community.mysql.mysql_db:

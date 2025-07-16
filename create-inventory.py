@@ -30,10 +30,10 @@ def generate_inventory(terraform_data):
         "docker": {"hosts": {}},
     }
 
-    # NAT host configuration (Amazon Linux 2)
+    # NAT host configuration (Ubuntu 24.04)
     nat_config = {
         "ansible_host": terraform_data["nat_host_public_ip"]["value"],
-        "ansible_user": "ec2-user",
+        "ansible_user": "ubuntu",
         "ansible_connection": "ssh",
         "ansible_ssh_private_key_file": ssh_key_path,
         "ansible_ssh_common_args": "-o StrictHostKeyChecking=no",
@@ -48,7 +48,7 @@ def generate_inventory(terraform_data):
         "ansible_connection": "ssh",
         "ansible_ssh_private_key_file": ssh_key_path,
         "ansible_ssh_common_args": (
-            "-o ProxyCommand='ssh -W %h:%p -q -o StrictHostKeyChecking=no -i {ssh_key} ec2-user@{nat_host}'".format(
+            "-o ProxyCommand='ssh -W %h:%p -q -o StrictHostKeyChecking=no -i {ssh_key} ubuntu@{nat_host}'".format(
                 ssh_key=ssh_key_path,
                 nat_host=terraform_data["nat_host_public_ip"]["value"],
             )

@@ -8,7 +8,18 @@ NAT_USER ?= ubuntu
 UBUNTU_USER ?= ubuntu
 
 apply:  ## Apply terraform changes
-	terraform apply -auto-approve
+	@terraform apply -auto-approve || { \
+		echo "❌ Terraform apply failed. Checking for CloudWatch log group conflicts..."; \
+		if aws logs describe-log-groups --log-group-name-prefix "/aws/vpc/flowlogs/docker-infrastructure-dev" --query 'logGroups[0].logGroupName' --output text 2>/dev/null | grep -q "docker-infrastructure-dev"; then \
+			echo "🔧 Importing existing CloudWatch log group..."; \
+			terraform import 'module.networking.module.vpc.aws_cloudwatch_log_group.vpc_flow_logs' '/aws/vpc/flowlogs/docker-infrastructure-dev'; \
+			echo "♻️ Retrying terraform apply..."; \
+			terraform apply -auto-approve; \
+		else \
+			echo "❌ Apply failed for other reasons. Please check the output above."; \
+			exit 1; \
+		fi; \
+	}
 
 check-security:  ## Comprehensive security scanning
 	@echo "🔍 Running security scans..."
@@ -24,14 +35,14 @@ check-security:  ## Comprehensive security scanning
 	semgrep --config=auto --severity=ERROR --quiet . 2>/dev/null || echo "⚠️ Semgrep scan failed, continuing..."
 	@echo "✅ Security scanning completed!"
 
-connect-docker:  ## Connect to Docker host
+connect-docker: inventory  ## Connect to Docker host
 	@terraform init > /dev/null 2>&1
 	@terraform state pull > /dev/null && \
 	DOCKER_IP=$$(terraform output -raw docker_host_public_ip); \
 	echo "Connecting to docker host..."; \
 	ssh -o StrictHostKeyChecking=no $(UBUNTU_USER)@$$DOCKER_IP -i $(KEY)
 
-connect-db:  ## Connect to database host via NAT instance
+connect-db: inventory  ## Connect to database host via NAT instance
 	@terraform init > /dev/null 2>&1
 	@terraform state pull > /dev/null && \
 	NAT_IP=$$(terraform output -raw nat_host_public_ip) && \
@@ -41,7 +52,7 @@ connect-db:  ## Connect to database host via NAT instance
 		-o ProxyCommand="ssh -W %h:%p -i $(KEY) $(NAT_USER)@$$NAT_IP" \
 		-i $(KEY) $(UBUNTU_USER)@$$DB_IP
 
-connect-nat:  ## Connect to NAT instance
+connect-nat: inventory  ## Connect to NAT instance
 	@terraform init > /dev/null 2>&1
 	@terraform state pull > /dev/null && \
 	IP=$$(terraform output -raw nat_host_public_ip); \
@@ -79,7 +90,7 @@ init:  ## Initialize terraform
 	terraform init
 
 inventory:  ## (Re)Create Ansible inventory file
-	@python3 create-inventory.py
+	@source venv/bin/activate && python3 create-inventory.py
 
 ip:  ## Show the IP address of NAT host
 	terraform output nat_host_public_ip
@@ -106,16 +117,16 @@ setup-dev:  ## Setup development environment
 	@echo "🚀 Setting up development environment..."
 	@./setup-dev.sh
 
-update-hosts:  ## Update OS and reboot if necessary
+update-hosts: inventory  ## Update OS and reboot if necessary
 	@ansible-playbook -i inventory.yml playbooks/update-hosts.yml
 
-setup-database:  ## Setup database instance with MariaDB and PostgreSQL
+setup-database: inventory  ## Setup database instance with MariaDB and PostgreSQL
 	@ansible-playbook -i inventory.yml playbooks/setup-database.yml
 
-setup-docker:  ## Setup Docker instance with Docker and Docker Compose
+setup-docker: inventory  ## Setup Docker instance with Docker and Docker Compose
 	@ansible-playbook -i inventory.yml playbooks/setup-docker.yml
 
-setup-all:  ## Setup all instances (database and docker)
+setup-all: inventory  ## Setup all instances (database and docker)
 	@ansible-playbook -i inventory.yml playbooks/setup-database.yml
 	@ansible-playbook -i inventory.yml playbooks/setup-docker.yml
 
@@ -134,7 +145,7 @@ ansible-yaml-lint:  ## Run yamllint on Ansible files
 	@echo "🔍 Running yamllint on Ansible files..."
 	@source venv/bin/activate && yamllint playbooks/
 
-ansible-syntax-check:  ## Check Ansible playbook syntax
+ansible-syntax-check: inventory  ## Check Ansible playbook syntax
 	@echo "🔍 Checking Ansible syntax..."
 	@ansible-playbook --syntax-check playbooks/update-hosts.yml
 	@ansible-playbook --syntax-check playbooks/setup-database.yml

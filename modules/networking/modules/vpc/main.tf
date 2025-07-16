@@ -20,6 +20,12 @@ resource "aws_cloudwatch_log_group" "vpc_flow_logs" {
   name              = "/aws/vpc/flowlogs/${var.name_prefix}"
   retention_in_days = 365 # 1 year retention for compliance
   kms_key_id        = var.kms_key_id
+  skip_destroy      = true # Prevent issues with log group recreation
+
+  lifecycle {
+    prevent_destroy = false
+    ignore_changes  = []
+  }
 
   tags = merge(
     var.common_tags,
