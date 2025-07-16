@@ -13,7 +13,7 @@ module "nat_host" {
   public_subnet_id  = module.networking.public_subnet_ids[0]
   ssm_role_name     = data.aws_iam_role.existing_ssm_role.name
   project_name      = var.project_name
-  kms_key_id        = module.security.ebs_kms_key_id
+  kms_key_id        = module.security.ebs_kms_key_arn
 }
 
 module "database_host" {
@@ -31,7 +31,7 @@ module "database_host" {
   key_name              = var.key_name
   ssm_role_name         = data.aws_iam_role.existing_ssm_role.name
   data_volume_size      = var.database_volume_size
-  kms_key_id            = module.security.ebs_kms_key_id
+  kms_key_id            = module.security.ebs_kms_key_arn
 }
 
 module "docker_host" {
@@ -48,5 +48,5 @@ module "docker_host" {
   project_name         = var.project_name
   iam_instance_profile = data.aws_iam_role.existing_ssm_role.name
   docker_instance_type = var.docker_instance_type
-  kms_key_id           = module.security.ebs_kms_key_id
+  kms_key_id           = module.security.ebs_kms_key_arn
 }

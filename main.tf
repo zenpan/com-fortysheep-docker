@@ -18,5 +18,7 @@ module "networking" {
   private_subnets          = var.private_subnet_cidrs
   nat_instance_id          = module.nat_host.instance_id
   nat_network_interface_id = module.nat_host.primary_network_interface_id
-  kms_key_id               = module.security.ebs_kms_key_id
+  kms_key_id               = module.security.cloudwatch_logs_kms_key_arn
+
+  depends_on = [module.security]
 }
