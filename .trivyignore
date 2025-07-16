@@ -13,6 +13,16 @@ AVD-AWS-0104
 AVD-AWS-0164
 
 # Ignore virtual environment files - these are dependencies, not our code
-venv/
-.venv/
-__pycache__/
+venv/**
+.venv/**
+__pycache__/**
+**/venv/**
+**/.venv/**
+**/__pycache__/**
+
+# Ignore specific files causing false positives
+.venv/lib/python3.13/site-packages/ansible/galaxy/data/apb/Dockerfile.j2
+venv/lib/python3.13/site-packages/ansible/galaxy/data/apb/Dockerfile.j2
+
+# Ignore specific vulnerability in virtual environment files
+AVD-DS-0011

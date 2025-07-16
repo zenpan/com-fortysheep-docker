@@ -64,6 +64,9 @@ skip-paths:
   - ".cache/"
   - ".tox/"
   - ".terraform/"
+  - "**/venv/**"
+  - "**/.venv/**"
+  - "**/__pycache__/**"
 
 # Suppress expected warnings
 suppress:
