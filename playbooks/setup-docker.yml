@@ -1,0 +1,545 @@
+---
+- name: Setup Docker Instance with Docker and Docker Compose
+  hosts: docker
+  gather_facts: true
+  become: true
+  vars:
+    data_device: "/dev/nvme1n1"
+    data_mount_point: "/var/lib/docker-data"
+    docker_users:
+      - ubuntu
+      - ec2-user
+
+  tasks:
+    - name: Install required packages
+      ansible.builtin.apt:
+        name:
+          - nvme-cli
+          - parted
+          - e2fsprogs
+          - xfsprogs
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+          - software-properties-common
+        state: present
+        update_cache: true
+
+    - name: Check if NVMe device exists
+      ansible.builtin.stat:
+        path: "{{ data_device }}"
+      register: nvme_device
+
+    - name: Fail if NVMe device not found
+      ansible.builtin.fail:
+        msg: "NVMe device {{ data_device }} not found"
+      when: not nvme_device.stat.exists
+
+    - name: Get NVMe device information
+      ansible.builtin.command:
+        cmd: "nvme id-ctrl {{ data_device }}"
+      register: nvme_info
+      changed_when: false
+
+    - name: Check if device is already partitioned
+      ansible.builtin.command:
+        cmd: "lsblk {{ data_device }}"
+      register: device_partitions
+      changed_when: false
+
+    - name: Create partition on NVMe device if not exists
+      community.general.parted:
+        device: "{{ data_device }}"
+        number: 1
+        state: present
+        part_type: primary
+        part_start: 0%
+        part_end: 100%
+      when: data_device + "p1" not in device_partitions.stdout
+
+    - name: Format partition with ext4 filesystem
+      community.general.filesystem:
+        fstype: ext4
+        dev: "{{ data_device }}p1"
+        opts: -L docker-data
+      when: data_device + "p1" not in device_partitions.stdout
+
+    - name: Get UUID of the formatted partition
+      ansible.builtin.command:
+        cmd: "blkid -s UUID -o value {{ data_device }}p1"
+      register: partition_uuid
+      changed_when: false
+
+    - name: Create mount point directory
+      ansible.builtin.file:
+        path: "{{ data_mount_point }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Check if partition is already in fstab
+      ansible.builtin.command:
+        cmd: "grep -q 'UUID={{ partition_uuid.stdout }}' /etc/fstab"
+      register: fstab_check
+      failed_when: false
+      changed_when: false
+
+    - name: Add partition to fstab
+      ansible.builtin.lineinfile:
+        path: /etc/fstab
+        line: "UUID={{ partition_uuid.stdout }} {{ data_mount_point }} ext4 defaults,noatime 0 2"
+        regexp: "^UUID={{ partition_uuid.stdout }}\\s"
+        state: present
+        backup: true
+      when: fstab_check.rc != 0
+
+    - name: Check if partition is already mounted
+      ansible.builtin.command:
+        cmd: "mountpoint -q {{ data_mount_point }}"
+      register: mount_check
+      failed_when: false
+      changed_when: false
+
+    - name: Mount the data partition
+      ansible.posix.mount:
+        path: "{{ data_mount_point }}"
+        src: "UUID={{ partition_uuid.stdout }}"
+        fstype: ext4
+        opts: defaults,noatime
+        state: mounted
+      when: mount_check.rc != 0
+
+    - name: Remove old Docker packages
+      ansible.builtin.apt:
+        name:
+          - docker
+          - docker-engine
+          - docker.io
+          - containerd
+          - runc
+        state: absent
+
+    - name: Check for old Docker GPG keys
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - /usr/share/keyrings/docker-archive-keyring.gpg
+      register: old_gpg_keys
+
+    - name: Remove old Docker GPG keys
+      ansible.builtin.file:
+        path: "{{ item.item }}"
+        state: absent
+      loop: "{{ old_gpg_keys.results }}"
+      when: item.stat.exists
+
+    - name: Remove old Docker repository entries
+      ansible.builtin.apt_repository:
+        repo: "{{ item }}"
+        state: absent
+      loop:
+        - >
+          deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg]
+          https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable
+        - >
+          deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc]
+          https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable
+      failed_when: false
+
+    - name: Create keyring directory
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
+
+    - name: Check if Docker GPG key exists
+      ansible.builtin.stat:
+        path: /etc/apt/keyrings/docker.asc
+      register: docker_gpg_key_check
+
+    - name: Add Docker GPG key
+      ansible.builtin.get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        mode: '0644'
+      when: not docker_gpg_key_check.stat.exists
+
+    - name: Get system architecture
+      ansible.builtin.command:
+        cmd: dpkg --print-architecture
+      register: system_arch
+      changed_when: false
+
+    - name: Check if Docker repository is already added
+      ansible.builtin.shell:
+        cmd: "grep -r 'download.docker.com' /etc/apt/sources.list.d/ || echo 'not found'"
+      register: docker_repo_check
+      failed_when: false
+      changed_when: false
+
+    - name: Add Docker repository
+      ansible.builtin.apt_repository:
+        repo: >
+          deb [arch={{ system_arch.stdout }} signed-by=/etc/apt/keyrings/docker.asc]
+          https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable
+        state: present
+        update_cache: true
+      when: "'not found' in docker_repo_check.stdout"
+
+    - name: Update apt cache after adding Docker repository
+      ansible.builtin.apt:
+        update_cache: true
+      when: "'not found' in docker_repo_check.stdout"
+
+    - name: Check available Docker packages
+      ansible.builtin.command:
+        cmd: "apt-cache search docker-ce"
+      register: docker_packages
+      changed_when: false
+
+    - name: Display available Docker packages
+      ansible.builtin.debug:
+        msg: "Available Docker packages: {{ docker_packages.stdout_lines }}"
+
+    - name: Install Docker Engine
+      ansible.builtin.apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+        update_cache: true
+
+    - name: Create Docker service override directory
+      ansible.builtin.file:
+        path: /etc/systemd/system/docker.service.d
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Configure Docker daemon for custom data directory
+      ansible.builtin.copy:
+        content: |
+          {
+            "data-root": "{{ data_mount_point }}/docker",
+            "storage-driver": "overlay2",
+            "log-driver": "json-file",
+            "log-opts": {
+              "max-size": "100m",
+              "max-file": "3"
+            },
+            "live-restore": true,
+            "userland-proxy": false,
+            "no-new-privileges": true
+          }
+        dest: /etc/docker/daemon.json
+        owner: root
+        group: root
+        mode: '0644'
+        backup: true
+
+    - name: Create Docker data directory
+      ansible.builtin.file:
+        path: "{{ data_mount_point }}/docker"
+        state: directory
+        owner: root
+        group: root
+        mode: '0711'
+
+    - name: Create Docker volumes directory
+      ansible.builtin.file:
+        path: "{{ data_mount_point }}/volumes"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Create Docker compose projects directory
+      ansible.builtin.file:
+        path: "{{ data_mount_point }}/compose"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Start and enable Docker service
+      ansible.builtin.systemd:
+        name: docker
+        state: started
+        enabled: true
+        daemon_reload: true
+
+    - name: Check if users exist
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ item }}"
+      loop: "{{ docker_users }}"
+      register: user_check
+      failed_when: false
+
+    - name: Add users to docker group
+      ansible.builtin.user:
+        name: "{{ item.item }}"
+        groups: docker
+        append: true
+      loop: "{{ user_check.results }}"
+      when: item.ansible_facts is defined and item.ansible_facts.getent_passwd is defined
+
+    - name: Get architecture for Docker Compose
+      ansible.builtin.command:
+        cmd: uname -m
+      register: system_uname_arch
+      changed_when: false
+
+    - name: Set Docker Compose architecture
+      ansible.builtin.set_fact:
+        docker_compose_arch: "{{ 'aarch64' if system_uname_arch.stdout == 'aarch64' else 'x86_64' }}"
+
+    - name: Install Docker Compose (standalone)
+      ansible.builtin.get_url:
+        url: "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-{{ docker_compose_arch }}"
+        dest: /usr/local/bin/docker-compose
+        mode: '0755'
+        owner: root
+        group: root
+
+    - name: Create symbolic link for docker-compose
+      ansible.builtin.file:
+        src: /usr/local/bin/docker-compose
+        dest: /usr/bin/docker-compose
+        state: link
+
+    - name: Install Docker Compose completion
+      ansible.builtin.get_url:
+        url: "https://raw.githubusercontent.com/docker/compose/v2.32.0/contrib/completion/bash/docker-compose"
+        dest: /etc/bash_completion.d/docker-compose
+        mode: '0644'
+        owner: root
+        group: root
+      failed_when: false
+
+    - name: Create docker-compose systemd service template
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Docker Compose Application Service
+          Requires=docker.service
+          After=docker.service
+
+          [Service]
+          Type=oneshot
+          RemainAfterExit=yes
+          WorkingDirectory={{ data_mount_point }}/compose/%i
+          ExecStart=/usr/local/bin/docker-compose up -d
+          ExecStop=/usr/local/bin/docker-compose down
+          TimeoutStartSec=0
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/docker-compose@.service
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Configure Docker logrotate
+      ansible.builtin.copy:
+        content: |
+          /var/log/docker.log {
+              daily
+              rotate 7
+              compress
+              delaycompress
+              missingok
+              notifempty
+              create 640 root root
+              postrotate
+                  systemctl reload docker
+              endscript
+          }
+
+          {{ data_mount_point }}/docker/containers/*/*-json.log {
+              daily
+              rotate 7
+              compress
+              delaycompress
+              missingok
+              notifempty
+              copytruncate
+              maxsize 100M
+          }
+        dest: /etc/logrotate.d/docker
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Install Docker monitoring tools
+      ansible.builtin.apt:
+        name:
+          - ctop
+        state: present
+      failed_when: false
+
+    - name: Create Docker cleanup script
+      ansible.builtin.copy:
+        content: |
+          #!/bin/bash
+          # Docker cleanup script
+          set -e
+
+          echo "Starting Docker cleanup..."
+
+          # Remove stopped containers
+          docker container prune -f
+
+          # Remove unused networks
+          docker network prune -f
+
+          # Remove unused volumes
+          docker volume prune -f
+
+          # Remove unused images
+          docker image prune -a -f
+
+          # Remove build cache
+          docker builder prune -a -f
+
+          echo "Docker cleanup completed."
+        dest: /usr/local/bin/docker-cleanup.sh
+        owner: root
+        group: root
+        mode: '0750'
+
+    - name: Schedule weekly Docker cleanup
+      ansible.builtin.cron:
+        name: "Docker cleanup"
+        minute: "0"
+        hour: "3"
+        weekday: "0"
+        job: "/usr/local/bin/docker-cleanup.sh"
+        user: root
+
+    - name: Create Docker backup script
+      ansible.builtin.copy:
+        content: |
+          #!/bin/bash
+          # Docker backup script
+          set -e
+
+          BACKUP_DIR="{{ data_mount_point }}/backups"
+          DATE=$(date +%Y%m%d_%H%M%S)
+
+          mkdir -p "$BACKUP_DIR"
+
+          echo "Creating Docker backup..."
+
+          # Backup Docker volumes
+          docker run --rm -v {{ data_mount_point }}/volumes:/volumes \\
+            -v $BACKUP_DIR:/backup busybox tar czf \\
+            /backup/docker_volumes_$DATE.tar.gz -C /volumes .
+
+          # Backup compose projects
+          tar czf "$BACKUP_DIR/compose_projects_$DATE.tar.gz" -C {{ data_mount_point }}/compose .
+
+          # Remove backups older than 7 days
+          find "$BACKUP_DIR" -name "*.tar.gz" -mtime +7 -delete
+
+          echo "Docker backup completed."
+        dest: /usr/local/bin/docker-backup.sh
+        owner: root
+        group: root
+        mode: '0750'
+
+    - name: Schedule daily Docker backup
+      ansible.builtin.cron:
+        name: "Docker backup"
+        minute: "0"
+        hour: "1"
+        job: "/usr/local/bin/docker-backup.sh"
+        user: root
+
+    - name: Create Docker monitoring script
+      ansible.builtin.copy:
+        content: |
+          #!/bin/bash
+          # Docker monitoring script
+
+          echo "=== Docker System Info ==="
+          docker system df
+
+          echo -e "\n=== Running Containers ==="
+          docker ps --format \\
+            "table {{ '{{' }}.Names{{ '}}' }}\t{{ '{{' }}.Status{{ '}}' }}\t{{ '{{' }}.Ports{{ '}}' }}"
+
+          echo -e "\n=== Docker Images ==="
+          docker images --format \\
+            "table {{ '{{' }}.Repository{{ '}}' }}\t{{ '{{' }}.Tag{{ '}}' }}\t{{ '{{' }}.Size{{ '}}' }}"
+
+          echo -e "\n=== Docker Volumes ==="
+          docker volume ls
+
+          echo -e "\n=== Docker Networks ==="
+          docker network ls
+        dest: /usr/local/bin/docker-status.sh
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Create Docker security audit script
+      ansible.builtin.copy:
+        content: |
+          #!/bin/bash
+          # Docker security audit script
+
+          echo "Running Docker security audit..."
+
+          # Check for Docker Bench Security
+          if [ -d "/opt/docker-bench-security" ]; then
+              cd /opt/docker-bench-security
+              ./docker-bench-security.sh
+          else
+              echo "Docker Bench Security not found, downloading..."
+              git clone https://github.com/docker/docker-bench-security.git /opt/docker-bench-security
+              cd /opt/docker-bench-security
+              ./docker-bench-security.sh
+          fi
+        dest: /usr/local/bin/docker-security-audit.sh
+        owner: root
+        group: root
+        mode: '0750'
+
+    - name: Verify Docker installation
+      ansible.builtin.command:
+        cmd: docker --version
+      register: docker_version
+      changed_when: false
+
+    - name: Verify Docker Compose installation
+      ansible.builtin.command:
+        cmd: docker-compose --version
+      register: docker_compose_version
+      changed_when: false
+
+    - name: Display Docker version
+      ansible.builtin.debug:
+        msg: "Docker installed: {{ docker_version.stdout }}"
+
+    - name: Display Docker Compose version
+      ansible.builtin.debug:
+        msg: "Docker Compose installed: {{ docker_compose_version.stdout }}"
+
+    - name: Test Docker functionality
+      ansible.builtin.command:
+        cmd: docker run --rm hello-world
+      register: docker_test
+      changed_when: false
+
+    - name: Display Docker test result
+      ansible.builtin.debug:
+        msg: "Docker test successful"
+      when: "'Hello from Docker!' in docker_test.stdout"

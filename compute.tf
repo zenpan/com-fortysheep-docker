@@ -7,7 +7,7 @@ module "nat_host" {
   my_ip             = local.myip
   ec2_connect_cidrs = data.aws_ip_ranges.ec2_instance_connect.cidr_blocks
   common_tags       = local.common_tags
-  ami_id            = data.aws_ami.al2023_arm.id
+  ami_id            = data.aws_ami.ubuntu.id
   instance_type     = var.nat_instance_type
   key_name          = var.key_name
   public_subnet_id  = module.networking.public_subnet_ids[0]

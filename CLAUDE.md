@@ -32,6 +32,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Ansible Operations
 - `make inventory` - Generate Ansible inventory from Terraform outputs
 - `make update-hosts` - Update OS packages on all hosts via Ansible
+- `make setup-database` - Setup database instance with MariaDB and PostgreSQL
+- `make setup-docker` - Setup Docker instance with Docker and Docker Compose
+- `make setup-all` - Setup all instances (database and docker)
+- `make ansible-requirements` - Install required Ansible collections
 
 ### Development Setup
 - `./create_dev.py` - Generate development environment configuration files

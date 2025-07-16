@@ -28,21 +28,8 @@ data "aws_ip_ranges" "ec2_instance_connect" {
   services = ["ec2_instance_connect"]
 }
 
-# Data source for the AL2023 ARM AMI
-data "aws_ami" "al2023_arm" {
-  most_recent = true
-  owners      = ["amazon"]
-
-  filter {
-    name   = "name"
-    values = ["al2023-ami-2023.*-arm64"]
-  }
-
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
-}
+# Note: NAT instance now uses Ubuntu 24.04 AMI (same as other instances)
+# Amazon Linux AMI data source removed since all instances use Ubuntu
 
 # Data source for the SSM role
 data "aws_iam_role" "existing_ssm_role" {

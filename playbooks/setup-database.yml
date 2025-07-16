@@ -1,0 +1,452 @@
+---
+- name: Setup Database Instance with MariaDB and PostgreSQL
+  hosts: database
+  gather_facts: true
+  become: true
+  vars:
+    data_device: "/dev/nvme1n1"
+    data_mount_point: "/var/lib/databases"
+    mariadb_root_password: "{{ vault_mariadb_root_password | default('change_me_please') }}"
+    postgres_password: "{{ vault_postgres_password | default('change_me_please') }}"
+
+  tasks:
+    - name: Install required packages
+      ansible.builtin.apt:
+        name:
+          - nvme-cli
+          - parted
+          - e2fsprogs
+          - xfsprogs
+          - python3-pexpect
+        state: present
+        update_cache: true
+
+    - name: Check if NVMe device exists
+      ansible.builtin.stat:
+        path: "{{ data_device }}"
+      register: nvme_device
+
+    - name: Fail if NVMe device not found
+      ansible.builtin.fail:
+        msg: "NVMe device {{ data_device }} not found"
+      when: not nvme_device.stat.exists
+
+    - name: Get NVMe device information
+      ansible.builtin.command:
+        cmd: "nvme id-ctrl {{ data_device }}"
+      register: nvme_info
+      changed_when: false
+
+    - name: Check if device is already partitioned
+      ansible.builtin.command:
+        cmd: "lsblk {{ data_device }}"
+      register: device_partitions
+      changed_when: false
+
+    - name: Create partition on NVMe device if not exists
+      community.general.parted:
+        device: "{{ data_device }}"
+        number: 1
+        state: present
+        part_type: primary
+        part_start: 0%
+        part_end: 100%
+      when: data_device + "p1" not in device_partitions.stdout
+
+    - name: Format partition with ext4 filesystem
+      community.general.filesystem:
+        fstype: ext4
+        dev: "{{ data_device }}p1"
+        opts: -L database-data
+      when: data_device + "p1" not in device_partitions.stdout
+
+    - name: Get UUID of the formatted partition
+      ansible.builtin.command:
+        cmd: "blkid -s UUID -o value {{ data_device }}p1"
+      register: partition_uuid
+      changed_when: false
+
+    - name: Create mount point directory
+      ansible.builtin.file:
+        path: "{{ data_mount_point }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Check if partition is already in fstab
+      ansible.builtin.command:
+        cmd: "grep -q 'UUID={{ partition_uuid.stdout }}' /etc/fstab"
+      register: fstab_check
+      failed_when: false
+      changed_when: false
+
+    - name: Add partition to fstab
+      ansible.builtin.lineinfile:
+        path: /etc/fstab
+        line: "UUID={{ partition_uuid.stdout }} {{ data_mount_point }} ext4 defaults,noatime 0 2"
+        regexp: "^UUID={{ partition_uuid.stdout }}\\s"
+        state: present
+        backup: true
+      when: fstab_check.rc != 0
+
+    - name: Check if partition is already mounted
+      ansible.builtin.command:
+        cmd: "mountpoint -q {{ data_mount_point }}"
+      register: mount_check
+      failed_when: false
+      changed_when: false
+
+    - name: Mount the data partition
+      ansible.posix.mount:
+        path: "{{ data_mount_point }}"
+        src: "UUID={{ partition_uuid.stdout }}"
+        fstype: ext4
+        opts: defaults,noatime
+        state: mounted
+      when: mount_check.rc != 0
+
+    - name: Install MariaDB
+      ansible.builtin.apt:
+        name:
+          - mariadb-server
+          - mariadb-client
+          - python3-pymysql
+        state: present
+
+    - name: Install PostgreSQL
+      ansible.builtin.apt:
+        name:
+          - postgresql
+          - postgresql-contrib
+          - python3-psycopg2
+        state: present
+
+    - name: Create MariaDB data directory
+      ansible.builtin.file:
+        path: "{{ data_mount_point }}/mariadb"
+        state: directory
+        owner: mysql
+        group: mysql
+        mode: '0750'
+
+    - name: Create PostgreSQL data directory
+      ansible.builtin.file:
+        path: "{{ data_mount_point }}/postgresql"
+        state: directory
+        owner: postgres
+        group: postgres
+        mode: '0750'
+
+    - name: Get PostgreSQL version
+      ansible.builtin.command:
+        cmd: "sudo -u postgres psql --version"
+      register: pg_version_output
+      changed_when: false
+
+    - name: Extract PostgreSQL version number
+      ansible.builtin.set_fact:
+        pg_version: "{{ pg_version_output.stdout | regex_search('([0-9]+)', '\\1') | first }}"
+
+    - name: Check if MariaDB data directory is initialized
+      ansible.builtin.stat:
+        path: "{{ data_mount_point }}/mariadb/mysql"
+      register: mariadb_initialized
+
+    - name: Check if PostgreSQL data directory is initialized
+      ansible.builtin.stat:
+        path: "{{ data_mount_point }}/postgresql/PG_VERSION"
+      register: postgresql_initialized
+
+    - name: Check MariaDB service status
+      ansible.builtin.systemd:
+        name: mariadb
+      register: mariadb_service_status
+
+    - name: Stop MariaDB service if running and data directory needs initialization
+      ansible.builtin.systemd:
+        name: mariadb
+        state: stopped
+      when: mariadb_service_status.status.ActiveState == "active" and not mariadb_initialized.stat.exists
+
+    - name: Check PostgreSQL service status
+      ansible.builtin.systemd:
+        name: postgresql
+      register: postgresql_service_status
+
+    - name: Stop PostgreSQL service if running and data directory needs initialization
+      ansible.builtin.systemd:
+        name: postgresql
+        state: stopped
+      when: postgresql_service_status.status.ActiveState == "active" and not postgresql_initialized.stat.exists
+
+    - name: Check if MariaDB data directory is empty (for cleanup)
+      ansible.builtin.find:
+        paths: "{{ data_mount_point }}/mariadb"
+        file_type: any
+      register: mariadb_dir_contents
+      when: not mariadb_initialized.stat.exists
+      failed_when: false
+
+    - name: Clear MariaDB data directory if partially initialized
+      ansible.builtin.file:
+        path: "{{ data_mount_point }}/mariadb"
+        state: absent
+      when: not mariadb_initialized.stat.exists and mariadb_dir_contents.matched > 0
+
+    - name: Recreate MariaDB data directory
+      ansible.builtin.file:
+        path: "{{ data_mount_point }}/mariadb"
+        state: directory
+        owner: mysql
+        group: mysql
+        mode: '0750'
+      when: not mariadb_initialized.stat.exists and mariadb_dir_contents.matched > 0
+
+    - name: Initialize MariaDB data directory
+      ansible.builtin.command:
+        cmd: "mysql_install_db --user=mysql --basedir=/usr --datadir={{ data_mount_point }}/mariadb"
+      when: not mariadb_initialized.stat.exists
+      become: true
+      become_user: mysql
+      changed_when: true
+
+    - name: Check if PostgreSQL data directory is empty (for cleanup)
+      ansible.builtin.find:
+        paths: "{{ data_mount_point }}/postgresql"
+        file_type: any
+      register: postgresql_dir_contents
+      when: not postgresql_initialized.stat.exists
+      failed_when: false
+
+    - name: Clear PostgreSQL data directory if partially initialized
+      ansible.builtin.file:
+        path: "{{ data_mount_point }}/postgresql"
+        state: absent
+      when: not postgresql_initialized.stat.exists and postgresql_dir_contents.matched > 0
+
+    - name: Recreate PostgreSQL data directory
+      ansible.builtin.file:
+        path: "{{ data_mount_point }}/postgresql"
+        state: directory
+        owner: postgres
+        group: postgres
+        mode: '0750'
+      when: not postgresql_initialized.stat.exists and postgresql_dir_contents.matched > 0
+
+    - name: Initialize PostgreSQL data directory
+      ansible.builtin.command:
+        cmd: "sudo -u postgres /usr/lib/postgresql/{{ pg_version }}/bin/initdb -D {{ data_mount_point }}/postgresql"
+      when: not postgresql_initialized.stat.exists
+      become: true
+      become_user: postgres
+      changed_when: true
+
+    - name: Configure MariaDB to use custom data directory
+      ansible.builtin.lineinfile:
+        path: /etc/mysql/mariadb.conf.d/50-server.cnf
+        regexp: '^datadir'
+        line: "datadir = {{ data_mount_point }}/mariadb"
+        backup: true
+
+    - name: Configure PostgreSQL to use custom data directory
+      ansible.builtin.lineinfile:
+        path: "/etc/postgresql/{{ pg_version }}/main/postgresql.conf"
+        regexp: "^#?data_directory"
+        line: "data_directory = '{{ data_mount_point }}/postgresql'"
+        backup: true
+
+    - name: Start and enable MariaDB service
+      ansible.builtin.systemd:
+        name: mariadb
+        state: started
+        enabled: true
+
+    - name: Start and enable PostgreSQL service
+      ansible.builtin.systemd:
+        name: postgresql
+        state: started
+        enabled: true
+
+    - name: Check if MariaDB root password is already set
+      ansible.builtin.command:
+        cmd: "mysql -u root -p{{ mariadb_root_password }} -e 'SELECT 1'"
+      register: mariadb_root_check
+      failed_when: false
+      changed_when: false
+      no_log: true
+
+    - name: Set MariaDB root password
+      ansible.builtin.command:
+        cmd: "mysql -u root -e \"ALTER USER 'root'@'localhost' IDENTIFIED BY '{{ mariadb_root_password }}';\""
+      when: mariadb_root_check.rc != 0
+      no_log: true
+      changed_when: true
+
+    - name: Remove anonymous MariaDB users
+      community.mysql.mysql_user:
+        name: ''
+        host_all: true
+        state: absent
+        login_user: root
+        login_password: "{{ mariadb_root_password }}"
+      failed_when: false
+
+    - name: Remove MariaDB test database
+      community.mysql.mysql_db:
+        name: test
+        state: absent
+        login_user: root
+        login_password: "{{ mariadb_root_password }}"
+      failed_when: false
+
+    - name: Disallow root login remotely
+      community.mysql.mysql_query:
+        login_user: root
+        login_password: "{{ mariadb_root_password }}"
+        query: "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1')"
+      failed_when: false
+
+    - name: Check if PostgreSQL postgres user password is set
+      ansible.builtin.shell:
+        cmd: "set -o pipefail && echo 'SELECT 1' | sudo -u postgres psql -v ON_ERROR_STOP=1 2>/dev/null"
+      register: postgres_password_check
+      failed_when: false
+      changed_when: false
+      environment:
+        PGPASSWORD: "{{ postgres_password }}"
+
+    - name: Set PostgreSQL postgres user password
+      ansible.builtin.command:
+        cmd: "sudo -u postgres psql -c \"ALTER USER postgres PASSWORD '{{ postgres_password }}';\""
+      when: postgres_password_check.rc != 0
+      no_log: true
+      changed_when: true
+
+    - name: Create MariaDB application database
+      community.mysql.mysql_db:
+        name: appdb
+        state: present
+        login_user: root
+        login_password: "{{ mariadb_root_password }}"
+      failed_when: false
+
+    - name: Create MariaDB application user
+      community.mysql.mysql_user:
+        name: appuser
+        password: "{{ vault_mariadb_app_password | default('change_me_please') }}"
+        priv: "appdb.*:ALL"
+        host: '%'
+        state: present
+        login_user: root
+        login_password: "{{ mariadb_root_password }}"
+      no_log: true
+      failed_when: false
+
+    - name: Create PostgreSQL application database
+      community.postgresql.postgresql_db:
+        name: appdb
+        state: present
+      become: true
+      become_user: postgres
+      failed_when: false
+
+    - name: Create PostgreSQL application user
+      community.postgresql.postgresql_user:
+        name: appuser
+        password: "{{ vault_postgres_app_password | default('change_me_please') }}"
+        db: appdb
+        priv: ALL
+        state: present
+      become: true
+      become_user: postgres
+      no_log: true
+      failed_when: false
+
+    - name: Configure MariaDB for remote connections
+      ansible.builtin.lineinfile:
+        path: /etc/mysql/mariadb.conf.d/50-server.cnf
+        regexp: '^bind-address'
+        line: 'bind-address = 0.0.0.0'
+        backup: true
+      notify: Restart MariaDB
+
+    - name: Configure PostgreSQL for remote connections
+      ansible.builtin.lineinfile:
+        path: "/etc/postgresql/{{ pg_version }}/main/postgresql.conf"
+        regexp: "^#?listen_addresses"
+        line: "listen_addresses = '*'"
+        backup: true
+      notify: Restart PostgreSQL
+
+    - name: Configure PostgreSQL host-based authentication
+      ansible.builtin.lineinfile:
+        path: "/etc/postgresql/{{ pg_version }}/main/pg_hba.conf"
+        line: "host    all             all             10.0.0.0/16            md5"
+        backup: true
+      notify: Restart PostgreSQL
+
+    - name: Create database backup directory
+      ansible.builtin.file:
+        path: "{{ data_mount_point }}/backups"
+        state: directory
+        owner: root
+        group: root
+        mode: '0700'
+
+    - name: Create database backup script
+      ansible.builtin.template:
+        src: database-backup.sh.j2
+        dest: /usr/local/bin/database-backup.sh
+        owner: root
+        group: root
+        mode: '0750'
+
+    - name: Schedule daily database backups
+      ansible.builtin.cron:
+        name: "Database backup"
+        minute: "0"
+        hour: "2"
+        job: "/usr/local/bin/database-backup.sh"
+        user: root
+
+    - name: Configure logrotate for database logs
+      ansible.builtin.copy:
+        content: |
+          /var/log/mysql/*.log {
+              daily
+              rotate 7
+              compress
+              delaycompress
+              missingok
+              notifempty
+              create 640 mysql mysql
+              postrotate
+                  systemctl reload mariadb
+              endscript
+          }
+
+          /var/log/postgresql/*.log {
+              daily
+              rotate 7
+              compress
+              delaycompress
+              missingok
+              notifempty
+              create 640 postgres postgres
+          }
+        dest: /etc/logrotate.d/databases
+        owner: root
+        group: root
+        mode: '0644'
+
+  handlers:
+    - name: Restart MariaDB
+      ansible.builtin.systemd:
+        name: mariadb
+        state: restarted
+
+    - name: Restart PostgreSQL
+      ansible.builtin.systemd:
+        name: postgresql
+        state: restarted

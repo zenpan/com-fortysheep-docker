@@ -1,14 +1,15 @@
 #!/bin/bash
 cat << 'USERDATA' > /var/lib/cloud/scripts/per-instance/user-data.sh
 #!/bin/bash
-dnf update -y
+apt-get update -y
+apt-get upgrade -y
 
-# Install packages, using --allowerasing for curl
-dnf install --allowerasing -y curl
-dnf install -y htop net-tools iptables-services sysstat nethogs tmux
+# Install packages
+apt-get install -y curl htop net-tools iptables-persistent sysstat nethogs tmux awscli
 
-# Enable and start iptables
-systemctl enable --now iptables
+# Enable and start iptables (iptables-persistent handles this)
+systemctl enable netfilter-persistent
+systemctl start netfilter-persistent
 
 # Configure IP forwarding
 echo "net.ipv4.ip_forward = 1" | tee -a /etc/sysctl.d/99-nat.conf
@@ -37,26 +38,11 @@ iptables -A INPUT -p tcp --dport 22 -j ACCEPT
 # Allow loopback
 iptables -A INPUT -i lo -j ACCEPT
 
-# Save iptables rules
-mkdir -p /etc/sysconfig/iptables
-iptables-save > /etc/sysconfig/iptables/iptables.rules
+# Save iptables rules (Ubuntu uses iptables-persistent)
+iptables-save > /etc/iptables/rules.v4
 
-# Ensure iptables rules are restored on boot
-cat > /etc/systemd/system/iptables-restore.service << 'IPTABLES'
-[Unit]
-Description=Restore iptables rules
-After=network.target
-
-[Service]
-Type=oneshot
-ExecStart=/sbin/iptables-restore /etc/sysconfig/iptables/iptables.rules
-RemainAfterExit=yes
-
-[Install]
-WantedBy=multi-user.target
-IPTABLES
-
-systemctl enable iptables-restore.service
+# Ensure iptables rules are restored on boot (handled by netfilter-persistent)
+systemctl enable netfilter-persistent
 
 # Configure sysctl parameters for NAT instance
 cat >> /etc/sysctl.d/99-nat.conf << ENDCONF
@@ -73,17 +59,19 @@ echo "nf_conntrack" | tee -a /etc/modules-load.d/nf_conntrack.conf
 sysctl -p /etc/sysctl.d/99-nat.conf
 
 # Install CloudWatch agent
-dnf install -y amazon-cloudwatch-agent
+wget https://s3.amazonaws.com/amazoncloudwatch-agent/ubuntu/arm64/latest/amazon-cloudwatch-agent.deb
+dpkg -i amazon-cloudwatch-agent.deb
+rm amazon-cloudwatch-agent.deb
 
 # Install EC2 Instance Connect
-dnf install -y ec2-instance-connect
+apt-get install -y ec2-instance-connect
 USERDATA
 
 chmod +x /var/lib/cloud/scripts/per-instance/user-data.sh
 /var/lib/cloud/scripts/per-instance/user-data.sh
 
-# Create .bash_aliases for ec2-user
-cat << 'EOF' >> /home/ec2-user/.bash_aliases
+# Create .bash_aliases for ubuntu user
+cat << 'EOF' >> /home/ubuntu/.bash_aliases
 # EC2 Instance Metadata Service v2 helper functions
 get-imds-token() {
     TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600" 2>/dev/null)
@@ -109,4 +97,4 @@ get-all-metadata() {
 EOF
 
 # Set correct ownership
-chown ec2-user:ec2-user /home/ec2-user/.bash_aliases
+chown ubuntu:ubuntu /home/ubuntu/.bash_aliases

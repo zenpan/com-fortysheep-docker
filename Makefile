@@ -4,7 +4,7 @@ include .env
 export
 
 KEY ?= $(SSH_KEY)
-NAT_USER ?= ec2-user
+NAT_USER ?= ubuntu
 UBUNTU_USER ?= ubuntu
 
 apply:  ## Apply terraform changes
@@ -64,7 +64,7 @@ help:  ## Show this help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {if ($$1 ~ /^(check-security|pre-commit-install|pre-commit-run)$$/) printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
 	@echo ""
 	@echo "🎭 \033[1mAnsible Operations:\033[0m"
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {if ($$1 ~ /^(ansible-.*|inventory|update-hosts)$$/) printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {if ($$1 ~ /^(ansible-.*|inventory|update-hosts|setup-database|setup-docker|setup-all)$$/) printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
 	@echo ""
 	@echo "🔗 \033[1mConnection & Info:\033[0m"
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {if ($$1 ~ /^(connect-.*|ip|ip-raw|outputs)$$/) printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
@@ -109,6 +109,20 @@ setup-dev:  ## Setup development environment
 update-hosts:  ## Update OS and reboot if necessary
 	@ansible-playbook -i inventory.yml playbooks/update-hosts.yml
 
+setup-database:  ## Setup database instance with MariaDB and PostgreSQL
+	@ansible-playbook -i inventory.yml playbooks/setup-database.yml
+
+setup-docker:  ## Setup Docker instance with Docker and Docker Compose
+	@ansible-playbook -i inventory.yml playbooks/setup-docker.yml
+
+setup-all:  ## Setup all instances (database and docker)
+	@ansible-playbook -i inventory.yml playbooks/setup-database.yml
+	@ansible-playbook -i inventory.yml playbooks/setup-docker.yml
+
+ansible-requirements:  ## Install Ansible collections from requirements.yml
+	@echo "📦 Installing Ansible collections..."
+	@ansible-galaxy collection install -r requirements.yml
+
 validate:  ## Validate terraform configuration
 	terraform validate
 
@@ -123,6 +137,8 @@ ansible-yaml-lint:  ## Run yamllint on Ansible files
 ansible-syntax-check:  ## Check Ansible playbook syntax
 	@echo "🔍 Checking Ansible syntax..."
 	@ansible-playbook --syntax-check playbooks/update-hosts.yml
+	@ansible-playbook --syntax-check playbooks/setup-database.yml
+	@ansible-playbook --syntax-check playbooks/setup-docker.yml
 
 ansible-semgrep:  ## Run Semgrep security analysis on Ansible files
 	@echo "🔍 Running Semgrep security analysis..."

@@ -10,14 +10,14 @@ data "aws_iam_policy_document" "ec2_instance_connect" {
   }
 }
 
-# Get the latest Ubuntu AMI
+# Get the latest Ubuntu 24.04 LTS AMI for ARM64
 data "aws_ami" "ubuntu" {
   most_recent = true
   owners      = ["099720109477"] # Canonical's AWS account ID
 
   filter {
     name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-*-arm64-server-*"]
+    values = ["ubuntu/images/hvm-ssd*/ubuntu-noble-24.04-arm64-server-*"]
   }
 
   filter {
@@ -33,5 +33,10 @@ data "aws_ami" "ubuntu" {
   filter {
     name   = "architecture"
     values = ["arm64"]
+  }
+
+  filter {
+    name   = "state"
+    values = ["available"]
   }
 }

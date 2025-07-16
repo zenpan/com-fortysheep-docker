@@ -23,19 +23,26 @@ def fetch_terraform_outputs():
 def generate_inventory(terraform_data):
     """Generate an Ansible dynamic inventory from Terraform outputs."""
     ssh_key_path = "~/.ssh/zp2key"
-    inventory = {"all": {"hosts": {}}}
+    inventory = {
+        "all": {"hosts": {}},
+        "nat": {"hosts": {}},
+        "database": {"hosts": {}},
+        "docker": {"hosts": {}},
+    }
 
     # NAT host configuration (Amazon Linux 2)
-    inventory["all"]["hosts"]["nat_host"] = {
+    nat_config = {
         "ansible_host": terraform_data["nat_host_public_ip"]["value"],
         "ansible_user": "ec2-user",
         "ansible_connection": "ssh",
         "ansible_ssh_private_key_file": ssh_key_path,
         "ansible_ssh_common_args": "-o StrictHostKeyChecking=no",
     }
+    inventory["all"]["hosts"]["nat_host"] = nat_config
+    inventory["nat"]["hosts"]["nat_host"] = nat_config
 
     # Database host configuration (Ubuntu, via NAT as jump host)
-    inventory["all"]["hosts"]["database"] = {
+    database_config = {
         "ansible_host": terraform_data["database_private_ip"]["value"],
         "ansible_user": "ubuntu",
         "ansible_connection": "ssh",
@@ -47,20 +54,19 @@ def generate_inventory(terraform_data):
             )
         ),
     }
+    inventory["all"]["hosts"]["database_host"] = database_config
+    inventory["database"]["hosts"]["database_host"] = database_config
 
     # Docker host configuration (Ubuntu, direct connection)
-    inventory["all"]["hosts"]["docker_host"] = {
+    docker_config = {
         "ansible_host": terraform_data["docker_host_public_ip"]["value"],
         "ansible_user": "ubuntu",
         "ansible_connection": "ssh",
         "ansible_ssh_private_key_file": ssh_key_path,
         "ansible_ssh_common_args": "-o StrictHostKeyChecking=no",
     }
-
-    # Group hosts
-    inventory["databases"] = {"hosts": {"database": {}}}
-    inventory["web"] = {"hosts": {"docker_host": {}}}
-    inventory["nat"] = {"hosts": {"nat_host": {}}}
+    inventory["all"]["hosts"]["docker_host"] = docker_config
+    inventory["docker"]["hosts"]["docker_host"] = docker_config
 
     return inventory
 
