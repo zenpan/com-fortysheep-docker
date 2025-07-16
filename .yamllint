@@ -1,0 +1,56 @@
+# yamllint configuration
+---
+extends: default
+
+rules:
+  # Allow longer lines for readability
+  line-length:
+    max: 120
+    allow-non-breakable-words: true
+    allow-non-breakable-inline-mappings: true
+
+  # Comments configuration (required by ansible-lint)
+  comments-indentation: false
+  comments:
+    min-spaces-from-content: 1
+
+  # Allow empty lines at end of file
+  empty-lines:
+    max-end: 1
+
+  # Indentation rules
+  indentation:
+    spaces: 2
+    indent-sequences: true
+
+  # Allow truthy values commonly used in Ansible
+  truthy:
+    allowed-values: ['true', 'false', 'yes', 'no', 'on', 'off']
+    check-keys: true
+
+  # Braces formatting
+  braces:
+    max-spaces-inside: 1
+    max-spaces-inside-empty: 0
+
+  # Brackets formatting
+  brackets:
+    max-spaces-inside: 1
+    max-spaces-inside-empty: 0
+
+  # Key ordering (disabled for flexibility)
+  key-ordering: disable
+
+  # Octal values (required by ansible-lint)
+  octal-values:
+    forbid-implicit-octal: true
+    forbid-explicit-octal: true
+
+# Files to ignore
+ignore: |
+  .github/
+  .venv/
+  venv/
+  molecule/
+  .tox/
+  .ansible/

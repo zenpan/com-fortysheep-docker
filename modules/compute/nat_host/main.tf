@@ -27,12 +27,49 @@ resource "aws_security_group" "nat" {
     description = "Allow EC2 Instance Connect"
   }
 
+  # Allow HTTPS for package updates and NAT routing
+  egress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow HTTPS for package updates and NAT routing"
+  }
+
+  # Allow HTTP for package updates and NAT routing
+  egress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow HTTP for package updates and NAT routing"
+  }
+
+  # Allow DNS resolution
+  egress {
+    from_port   = 53
+    to_port     = 53
+    protocol    = "udp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow DNS resolution"
+  }
+
+  # Allow internal VPC communication
   egress {
     from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "Allow all outbound traffic"
+    to_port     = 65535
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+    description = "Allow internal VPC communication"
+  }
+
+  # Allow all traffic from private subnets for NAT functionality
+  egress {
+    from_port   = 0
+    to_port     = 65535
+    protocol    = "tcp"
+    cidr_blocks = ["10.0.10.0/24", "10.0.11.0/24"]
+    description = "Allow NAT routing for private subnets"
   }
 
   tags = merge(
@@ -69,6 +106,8 @@ resource "aws_instance" "nat" {
   root_block_device {
     volume_size = 30
     volume_type = "gp3"
+    encrypted   = true
+    kms_key_id  = var.kms_key_id
   }
 
   tags = merge(

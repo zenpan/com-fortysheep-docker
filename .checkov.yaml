@@ -1,3 +1,4 @@
+---
 skip-check:
   # Already in your file
   - CKV_AWS_126  # Detailed monitoring not needed in dev

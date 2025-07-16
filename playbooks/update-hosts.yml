@@ -28,12 +28,12 @@
       failed_when: false
       changed_when: false
 
-    - name: Display reboot requirement status
+    - name: Display RedHat reboot requirement status
       ansible.builtin.debug:
         msg: "System requires reboot: {{ 'Yes' if reboot_required.rc == 1 else 'No' }}"
 
     # Optionally reboot if required
-    - name: Reboot system if required
+    - name: Reboot RedHat system if required
       ansible.builtin.reboot:
         msg: "Rebooting system due to package updates"
         connect_timeout: 5
@@ -63,7 +63,7 @@
         path: /var/run/reboot-required
       register: reboot_required
 
-    - name: Display reboot requirement status
+    - name: Display Debian reboot requirement status
       ansible.builtin.debug:
         msg: "System requires reboot: {{ 'Yes' if reboot_required.stat.exists else 'No' }}"
 
@@ -81,7 +81,7 @@
       when: reboot_required.stat.exists
 
     # Optional: Perform the reboot if required
-    - name: Reboot system if required
+    - name: Reboot Debian system if required
       ansible.builtin.reboot:
         msg: "Rebooting system due to package updates"
         connect_timeout: 5
@@ -97,6 +97,6 @@
       failed_when: false
       changed_when: false
 
-    - name: Display reboot requirement status
+    - name: Display needrestart reboot requirement status
       ansible.builtin.debug:
         msg: "System requires reboot: {{ 'Yes' if reboot_required.rc >= 1 else 'No' }}"

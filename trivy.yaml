@@ -1,0 +1,70 @@
+---
+# Trivy configuration file
+# See: https://trivy.dev/v0.64/docs/references/configuration/
+
+# Scanner settings
+scanner:
+  - vuln
+  - misconfig
+  - secret
+  - license
+
+# Package scanning
+pkg:
+  types:
+    - os
+    - library
+  severities:
+    - CRITICAL
+    - HIGH
+    - MEDIUM
+    - LOW
+
+# Misconfiguration scanning
+misconfig:
+  severities:
+    - CRITICAL
+    - HIGH
+    - MEDIUM
+    - LOW
+  policy-namespaces:
+    - builtin.terraform
+    - builtin.kubernetes
+    - builtin.dockerfile
+    - builtin.cloudformation
+
+# Secret scanning
+secret:
+  severities:
+    - CRITICAL
+    - HIGH
+    - MEDIUM
+    - LOW
+
+# License scanning
+license:
+  severities:
+    - CRITICAL
+    - HIGH
+    - MEDIUM
+    - LOW
+
+# Output format
+format: table
+
+# Ignore file location
+ignorefile: .trivyignore
+
+# Skip paths during scanning
+skip-paths:
+  - "venv/"
+  - ".venv/"
+  - "__pycache__/"
+  - "node_modules/"
+  - ".cache/"
+  - ".tox/"
+  - ".terraform/"
+
+# Suppress expected warnings
+suppress:
+  - WARN # Suppress warning level messages for cleaner output

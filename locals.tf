@@ -1,5 +1,6 @@
 locals {
-  name_prefix = "${var.project_name}-${var.environment}"
+  # Create AWS-compliant name prefix (alphanumeric, hyphens, underscores only)
+  name_prefix = "${replace(lower(var.project_name), " ", "-")}-${var.environment}"
 
   # For the NAT instance security group
   myip = "${chomp(data.http.myip.response_body)}/32"

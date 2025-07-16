@@ -5,6 +5,7 @@ module "vpc" {
   name_prefix  = var.name_prefix
   common_tags  = var.common_tags
   project_name = var.project_name
+  kms_key_id   = var.kms_key_id
 }
 
 module "subnets" {

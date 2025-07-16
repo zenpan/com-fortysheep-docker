@@ -43,3 +43,8 @@ variable "nat_network_interface_id" {
   description = "The ID of the NAT instance's primary network interface"
   type        = string
 }
+
+variable "kms_key_id" {
+  description = "KMS key ID for encryption"
+  type        = string
+}

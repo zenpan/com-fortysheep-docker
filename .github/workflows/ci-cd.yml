@@ -1,0 +1,266 @@
+name: CI/CD Pipeline
+
+# Trigger on push to main/master and all pull requests
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+env:
+  TERRAFORM_VERSION: "1.6.0"
+
+jobs:
+  # Pre-flight checks
+  pre-flight:
+    name: Pre-flight Checks
+    runs-on: ubuntu-latest
+    outputs:
+      has-terraform-changes: ${{ steps.changes.outputs.terraform }}
+      has-security-changes: ${{ steps.changes.outputs.security }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect Changes
+        uses: dorny/paths-filter@v2
+        id: changes
+        with:
+          filters: |
+            terraform:
+              - '*.tf'
+              - '**/*.tf'
+              - '*.tfvars.example'
+              - 'modules/**'
+            security:
+              - '.github/workflows/**'
+              - 'trivy.yaml'
+              - '.trivyignore'
+              - '.pre-commit-config.yaml'
+              - 'requirements.txt'
+
+  # Code Quality & Security
+  quality-security:
+    name: Code Quality & Security
+    runs-on: ubuntu-latest
+    needs: pre-flight
+
+    permissions:
+      contents: read
+      security-events: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Pre-commit Hooks
+        uses: pre-commit/action@v3.0.0
+        with:
+          extra_args: --all-files
+
+      - name: Install Security Tools
+        run: |
+          # Install Trivy
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin v0.48.0
+
+          # Install gitleaks
+          curl -sSfL https://raw.githubusercontent.com/gitleaks/gitleaks/master/scripts/install.sh | sh -s -- -b /usr/local/bin
+
+          # Install checkov and semgrep via pip (already in requirements.txt)
+          pip install checkov semgrep
+
+      - name: Comprehensive Security Scan
+        run: |
+          echo "🔍 Running comprehensive security scan..."
+          make check-security
+
+      - name: Generate Security Report
+        if: always()
+        run: |
+          echo "📊 Generating security report..."
+          mkdir -p security-reports
+
+          # Run individual scans with SARIF output
+          gitleaks detect --source . --report-format sarif --report-path security-reports/gitleaks.sarif || true
+          trivy config --config trivy.yaml --severity CRITICAL,HIGH --tf-vars terraform.tfvars --format sarif --output security-reports/trivy-iac.sarif . || true
+          trivy fs --config trivy.yaml --scanners vuln,secret,misconfig --format sarif --output security-reports/trivy-fs.sarif . || true
+          checkov --quiet --framework terraform --output sarif --output-file security-reports/checkov.sarif -d . || true
+          semgrep --config=auto --severity=ERROR --sarif --output security-reports/semgrep.sarif . || true
+
+      - name: Upload Security Results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: security-reports/
+          category: ci-cd-security
+
+      - name: Archive Security Reports
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: security-reports
+          path: security-reports/
+          retention-days: 30
+
+  # Terraform Validation
+  terraform-validate:
+    name: Terraform Validation
+    runs-on: ubuntu-latest
+    needs: [pre-flight, quality-security]
+    if: needs.pre-flight.outputs.has-terraform-changes == 'true'
+
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Init
+        run: terraform init -backend=false
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan (Dry Run)
+        run: |
+          # Create CI test variables
+          cat > terraform.tfvars.ci <<EOF
+          aws_region = "us-east-1"
+          project_name = "ci-validation"
+          environment = "dev"
+          company_name = "ci-test"
+          vpc_cidr = "10.0.0.0/16"
+          owner = "ci@example.com"
+          team = "DevOps"
+          availability_zone = "us-east-1a"
+          key_name = "ci-key"
+          EOF
+
+          terraform plan -var-file=terraform.tfvars.ci -out=tfplan
+
+  # Security Gate Decision
+  security-gate:
+    name: Security Gate Decision
+    runs-on: ubuntu-latest
+    needs: [quality-security, terraform-validate]
+    if: always()
+
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Download Security Reports
+        uses: actions/download-artifact@v3
+        with:
+          name: security-reports
+          path: security-reports/
+
+      - name: Evaluate Security Gate
+        run: |
+          echo "🚦 Evaluating security gate..."
+
+          # Check if any critical security issues were found
+          critical_issues=0
+
+          # Check each SARIF file for critical findings
+          for file in security-reports/*.sarif; do
+            if [ -f "$file" ]; then
+              # Count results in SARIF file
+              results=$(jq -r '.runs[0].results | length' "$file" 2>/dev/null || echo "0")
+              if [ "$results" -gt 0 ]; then
+                echo "⚠️ Found $results issues in $(basename "$file")"
+                critical_issues=$((critical_issues + results))
+              fi
+            fi
+          done
+
+          echo "📊 Total security issues found: $critical_issues"
+
+          if [ "$critical_issues" -gt 0 ]; then
+            echo "❌ Security gate FAILED - Critical issues must be resolved"
+            exit 1
+          else
+            echo "✅ Security gate PASSED - No critical issues found"
+          fi
+
+      - name: Security Gate Summary
+        if: always()
+        run: |
+          echo "🚦 Security Gate Summary:"
+          echo "========================"
+          echo "Quality & Security: ${{ needs.quality-security.result }}"
+          echo "Terraform Validation: ${{ needs.terraform-validate.result }}"
+          echo ""
+          if [ "${{ needs.quality-security.result }}" == "success" ] && [ "${{ needs.terraform-validate.result }}" == "success" ]; then
+            echo "✅ All checks passed! Ready for deployment 🚀"
+          else
+            echo "❌ Some checks failed. Please review and fix issues."
+          fi
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const qualityResult = '${{ needs.quality-security.result }}';
+            const terraformResult = '${{ needs.terraform-validate.result }}';
+            const gateStatus = (qualityResult === 'success' && terraformResult === 'success') ? 'PASSED' : 'FAILED';
+
+            const comment = `## 🚦 CI/CD Security Gate Results
+
+            **Gate Status: ${gateStatus === 'PASSED' ? '✅ PASSED' : '❌ FAILED'}**
+
+            ### Pipeline Results:
+            - 🔒 **Quality & Security**: ${qualityResult === 'success' ? '✅ Passed' : '❌ Failed'}
+            - 🏗️ **Terraform Validation**: ${terraformResult === 'success' ? '✅ Passed' : '❌ Failed'}
+
+            ### Security Scans Performed:
+            - 🔍 Secret detection (gitleaks)
+            - 🔧 Infrastructure security (Trivy)
+            - 🗂️ Vulnerability scanning (Trivy)
+            - ☑️ Policy compliance (Checkov)
+            - ⚡ Static analysis (Semgrep)
+            - 🪝 Pre-commit hooks validation
+
+            ${gateStatus === 'PASSED' ?
+              '🎉 **All security checks passed! This PR is ready for deployment.**' :
+              '⚠️ **Please address the security issues before merging.** Check the Security tab for details.'
+            }
+
+            📊 View detailed results: [Security Dashboard](https://github.com/${{ github.repository }}/security/code-scanning)`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });

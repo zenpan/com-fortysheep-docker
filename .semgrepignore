@@ -1,0 +1,52 @@
+# Semgrep ignore file
+# Ignore files and directories that shouldn't be scanned
+
+# Development and build directories
+.git/
+.venv/
+venv/
+.tox/
+.cache/
+node_modules/
+.pytest_cache/
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.tar.gz
+*.zip
+*.log
+*.tmp
+
+# Secrets and sensitive files
+*.key
+*.pem
+*.cert
+*.crt
+.env
+.env.local
+.env.production
+
+# Test and example files
+test_*
+*_test.py
+example_*
+examples/
+tests/
+
+# Documentation
+*.md
+*.rst
+*.txt

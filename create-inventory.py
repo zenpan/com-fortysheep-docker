@@ -3,15 +3,13 @@ import json
 import subprocess
 import yaml
 
+
 def fetch_terraform_outputs():
     """Fetch the latest Terraform outputs using the `terraform output -json` command."""
     try:
         # Run `terraform output -json` and capture its output
         result = subprocess.run(
-            ["terraform", "output", "-json"],
-            check=True,
-            capture_output=True,
-            text=True
+            ["terraform", "output", "-json"], check=True, capture_output=True, text=True
         )
         return json.loads(result.stdout)
     except subprocess.CalledProcessError as e:
@@ -20,6 +18,7 @@ def fetch_terraform_outputs():
     except json.JSONDecodeError as e:
         print(f"Error parsing Terraform JSON output: {e}")
         exit(1)
+
 
 def generate_inventory(terraform_data):
     """Generate an Ansible dynamic inventory from Terraform outputs."""
@@ -32,7 +31,7 @@ def generate_inventory(terraform_data):
         "ansible_user": "ec2-user",
         "ansible_connection": "ssh",
         "ansible_ssh_private_key_file": ssh_key_path,
-        "ansible_ssh_common_args": "-o StrictHostKeyChecking=no"
+        "ansible_ssh_common_args": "-o StrictHostKeyChecking=no",
     }
 
     # Database host configuration (Ubuntu, via NAT as jump host)
@@ -44,9 +43,9 @@ def generate_inventory(terraform_data):
         "ansible_ssh_common_args": (
             "-o ProxyCommand='ssh -W %h:%p -q -o StrictHostKeyChecking=no -i {ssh_key} ec2-user@{nat_host}'".format(
                 ssh_key=ssh_key_path,
-                nat_host=terraform_data["nat_host_public_ip"]["value"]
+                nat_host=terraform_data["nat_host_public_ip"]["value"],
             )
-        )
+        ),
     }
 
     # Docker host configuration (Ubuntu, direct connection)
@@ -55,7 +54,7 @@ def generate_inventory(terraform_data):
         "ansible_user": "ubuntu",
         "ansible_connection": "ssh",
         "ansible_ssh_private_key_file": ssh_key_path,
-        "ansible_ssh_common_args": "-o StrictHostKeyChecking=no"
+        "ansible_ssh_common_args": "-o StrictHostKeyChecking=no",
     }
 
     # Group hosts
@@ -64,6 +63,7 @@ def generate_inventory(terraform_data):
     inventory["nat"] = {"hosts": {"nat_host": {}}}
 
     return inventory
+
 
 def write_inventory_to_yaml(inventory, output_file="inventory.yml"):
     """Write the inventory to a YAML file."""
@@ -75,6 +75,7 @@ def write_inventory_to_yaml(inventory, output_file="inventory.yml"):
         print(f"Error writing inventory to YAML: {e}")
         exit(1)
 
+
 def main():
     # Fetch the latest Terraform outputs
     terraform_data = fetch_terraform_outputs()
@@ -82,6 +83,7 @@ def main():
     inventory = generate_inventory(terraform_data)
     # Write the inventory to a file
     write_inventory_to_yaml(inventory)
+
 
 if __name__ == "__main__":
     main()

@@ -40,13 +40,40 @@ resource "aws_security_group" "database" {
     description     = "Allow MySQL from NAT instance"
   }
 
-  # Allow all outbound traffic
+  # Allow HTTPS for package updates and software downloads
+  egress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow HTTPS for package updates"
+  }
+
+  # Allow HTTP for package updates (some repos still use HTTP)
+  egress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow HTTP for package updates"
+  }
+
+  # Allow DNS resolution
+  egress {
+    from_port   = 53
+    to_port     = 53
+    protocol    = "udp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow DNS resolution"
+  }
+
+  # Allow internal VPC communication
   egress {
     from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "Allow all outbound traffic"
+    to_port     = 65535
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+    description = "Allow internal VPC communication"
   }
 
   tags = merge(
@@ -90,6 +117,8 @@ resource "aws_instance" "database" {
   root_block_device {
     volume_size = 20
     volume_type = "gp3"
+    encrypted   = true
+    kms_key_id  = var.kms_key_id
   }
 
   # Add data volume
@@ -98,6 +127,7 @@ resource "aws_instance" "database" {
     volume_size = var.data_volume_size
     volume_type = "gp3"
     encrypted   = true
+    kms_key_id  = var.kms_key_id
 
     tags = merge(
       var.common_tags,

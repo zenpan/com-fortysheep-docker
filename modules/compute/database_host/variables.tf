@@ -5,6 +5,11 @@ variable "vpc_id" {
   type        = string
 }
 
+variable "vpc_cidr" {
+  description = "CIDR block of the VPC"
+  type        = string
+}
+
 variable "name_prefix" {
   description = "Prefix for resource names"
   type        = string
@@ -54,4 +59,9 @@ variable "data_volume_size" {
   description = "Size of the data volume in GB"
   type        = number
   default     = 50
+}
+
+variable "kms_key_id" {
+  description = "KMS key ID for EBS encryption"
+  type        = string
 }

@@ -1,3 +1,4 @@
+---
 exclude:
   - aws-ec2-no-public-egress-sgr
   - aws-ec2-no-public-ingress-sgr

@@ -1,0 +1,37 @@
+# Ansible Lint configuration
+---
+profile: production  # min, basic, moderate, safety, shared, production
+
+# Exclude certain paths/files
+exclude_paths:
+  - .cache/
+  - .github/
+  - .venv/
+  - venv/
+  - molecule/
+  - .tox/
+
+# Skip certain rules
+skip_list:
+  - yaml[line-length]  # Allow longer lines in YAML
+  - name[template]     # Allow template variables in names
+
+# Enable rules that are normally disabled
+enable_list:
+  - no-log-password
+  - no-same-owner
+
+# Set the error level
+verbosity: 1
+
+# Use offline mode (no internet required)
+offline: false
+
+# Write to file instead of stdout
+write_list: []
+
+# Custom rules directory
+rulesdir: []
+
+# Show rule descriptions
+quiet: false

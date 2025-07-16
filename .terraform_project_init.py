@@ -16,17 +16,18 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Get environment variables with defaults
-COMPANY_NAME = os.getenv('COMPANY_NAME', 'Company')
-AUTHOR_NAME = os.getenv('AUTHOR_NAME', 'Author')
-AUTHOR_EMAIL = os.getenv('AUTHOR_EMAIL', 'author@example.com')
-PROJECT_NAME = os.getenv('PROJECT_NAME', 'Infrastructure')
-TERRAFORM_VERSION = os.getenv('TERRAFORM_VERSION', '1.7.0')
-AWS_PROVIDER_VERSION = os.getenv('AWS_PROVIDER_VERSION', '5.31')
-STATE_BUCKET_NAME = os.getenv('STATE_BUCKET_NAME', 'terraform-state')
-DYNAMODB_TABLE_NAME = os.getenv('DYNAMODB_TABLE_NAME', 'terraform-locks')
+COMPANY_NAME = os.getenv("COMPANY_NAME", "Company")
+AUTHOR_NAME = os.getenv("AUTHOR_NAME", "Author")
+AUTHOR_EMAIL = os.getenv("AUTHOR_EMAIL", "author@example.com")
+PROJECT_NAME = os.getenv("PROJECT_NAME", "Infrastructure")
+TERRAFORM_VERSION = os.getenv("TERRAFORM_VERSION", "1.7.0")
+AWS_PROVIDER_VERSION = os.getenv("AWS_PROVIDER_VERSION", "5.31")
+STATE_BUCKET_NAME = os.getenv("STATE_BUCKET_NAME", "terraform-state")
+DYNAMODB_TABLE_NAME = os.getenv("DYNAMODB_TABLE_NAME", "terraform-locks")
 
 # Get script directory
 SCRIPT_DIR = pathlib.Path(__file__).parent.absolute()
+
 
 def create_versions_tf(env_path):
     """Create versions.tf with current version constraints"""
@@ -40,34 +41,36 @@ def create_versions_tf(env_path):
   }}
 }}
 """
-    with open(env_path / 'versions.tf', 'w') as f:
+    with open(env_path / "versions.tf", "w") as f:
         f.write(versions_content)
+
 
 def create_directory_structure():
     """Create the basic directory structure, skipping existing files"""
     # Create environment directories
-    for env in ['prod', 'dev', 'staging']:
-        path = SCRIPT_DIR / 'environments' / env
+    for env in ["prod", "dev", "staging"]:
+        path = SCRIPT_DIR / "environments" / env
         path.mkdir(parents=True, exist_ok=True)
         # Create environment files
-        for file in ['main.tf', 'variables.tf', 'outputs.tf', 'backend.tf']:
+        for file in ["main.tf", "variables.tf", "outputs.tf", "backend.tf"]:
             file_path = path / file
             if not file_path.exists():
                 file_path.touch()
         # Create versions.tf only if it doesn't exist
-        versions_path = path / 'versions.tf'
+        versions_path = path / "versions.tf"
         if not versions_path.exists():
             create_versions_tf(path)
 
     # Create module directories
-    for module in ['vpc', 'ecs', 'rds', 'security', 'iam']:
-        path = SCRIPT_DIR / 'modules' / module
+    for module in ["vpc", "ecs", "rds", "security", "iam"]:
+        path = SCRIPT_DIR / "modules" / module
         path.mkdir(parents=True, exist_ok=True)
         # Create module files
-        for file in ['main.tf', 'variables.tf', 'outputs.tf', 'README.md']:
+        for file in ["main.tf", "variables.tf", "outputs.tf", "README.md"]:
             file_path = path / file
             if not file_path.exists():
                 file_path.touch()
+
 
 def create_gitignore():
     """Create .gitignore file"""
@@ -107,8 +110,9 @@ terraform.rc
 # Environment variables
 .env
 """
-    with open(SCRIPT_DIR / '.gitignore', 'w') as f:
+    with open(SCRIPT_DIR / ".gitignore", "w") as f:
         f.write(gitignore_content)
+
 
 def create_readme():
     """Create README.md with deployment and management instructions"""
@@ -168,34 +172,37 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
-    with open(SCRIPT_DIR / 'README.md', 'w') as f:
+    with open(SCRIPT_DIR / "README.md", "w") as f:
         f.write(readme_content)
+
 
 def main():
     """Main function to set up the project structure"""
     try:
         # Check if any files/directories would be affected
         existing_files = []
-        for env in ['prod', 'dev', 'staging']:
-            env_path = SCRIPT_DIR / 'environments' / env
+        for env in ["prod", "dev", "staging"]:
+            env_path = SCRIPT_DIR / "environments" / env
             if env_path.exists():
                 existing_files.append(f"environments/{env}")
-                for file in env_path.glob('*'):
+                for file in env_path.glob("*"):
                     existing_files.append(f"  {file.relative_to(SCRIPT_DIR)}")
 
-        for module in ['vpc', 'ecs', 'rds', 'security', 'iam']:
-            module_path = SCRIPT_DIR / 'modules' / module
+        for module in ["vpc", "ecs", "rds", "security", "iam"]:
+            module_path = SCRIPT_DIR / "modules" / module
             if module_path.exists():
                 existing_files.append(f"modules/{module}")
-                for file in module_path.glob('*'):
+                for file in module_path.glob("*"):
                     existing_files.append(f"  {file.relative_to(SCRIPT_DIR)}")
 
         if existing_files:
             print("The following existing files/directories will be preserved:")
             for file in existing_files:
                 print(file)
-            response = input("\nContinue? Only .gitignore and README.md will be overwritten. [y/N]: ")
-            if response.lower() != 'y':
+            response = input(
+                "\nContinue? Only .gitignore and README.md will be overwritten. [y/N]: "
+            )
+            if response.lower() != "y":
                 print("Setup cancelled.")
                 return 0
 
@@ -208,6 +215,7 @@ def main():
         print(f"Error creating project structure: {e}")
         return 1
     return 0
+
 
 if __name__ == "__main__":
     exit(main())

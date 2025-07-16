@@ -36,35 +36,33 @@ This repository contains the Terraform configurations for the FortySheep Docker 
     OWNER=your.email@example.com
     TEAM=DevOps
     ```
-1. Make the setup script executable:
+1. Make the development script executable:
     ```bash
-    chmod +x setup.py
+    chmod +x create_dev.py
     ```
-1. Run the setup script to create the project structure:
+1. Run the script to generate development configuration:
     ```bash
-    ./setup.py
+    ./create_dev.py
     ```
-    
+
 ## Structure
 
-- `environments/`: Environment-specific configurations
-  - `prod/`: Production environment
-  - `staging/`: Staging environment
-  - `dev/`: Development environment
 - `modules/`: Reusable Terraform modules
-  - `vpc/`: VPC and networking
-  - `ecs/`: ECS cluster and services
-  - `rds/`: Database configurations
+  - `networking/`: VPC, subnets, and routing
+  - `compute/`: EC2 instances (NAT, database, Docker hosts)
   - `security/`: Security groups and rules
   - `iam/`: IAM roles and policies
+- `playbooks/`: Ansible playbooks for configuration management
+- `create-inventory.py`: Generates Ansible inventory from Terraform state
+- `Makefile`: Automation commands for infrastructure management
 
 ## Prerequisites
 
-- Python 3.6+
-- python-dotenv package
+- Python 3.6+ with virtual environment support
 - Terraform >= 1.7.0
 - AWS Provider ~> 5.31
 - AWS CLI configured with appropriate credentials
+- Security tools: gitleaks, trivy, checkov, semgrep (installed via Homebrew)
 
 ## State Management
 
@@ -87,12 +85,61 @@ After configuring your .env file, follow these steps to set up the development e
     chmod +x create_dev.py
     ```
 
-1. Run the script to generate Terraform variables for the dev environment:
+2. Run the script to generate Terraform configuration:
     ```bash
     ./create_dev.py
     ```
 
-This will create a `terraform.tfvars` file in the `environments/dev` directory with your specific configuration values. The generated file is excluded from version control for security reasons.
+This will create `terraform.tfvars` and `backend.tf` files with your specific configuration values. The generated files are excluded from version control for security reasons.
+
+3. Set up Python virtual environment:
+    ```bash
+    python3 -m venv .venv
+    source .venv/bin/activate
+    pip install -r requirements.txt
+    ```
+
+4. Initialize and apply the infrastructure:
+    ```bash
+    make init
+    make plan
+    make apply
+    ```
+
+5. Set up development environment with pre-commit hooks:
+    ```bash
+    ./setup-dev.sh
+    ```
+
+6. Run security scans:
+    ```bash
+    make check-security
+    ```
+
+### Pre-commit Hooks
+
+This project uses pre-commit hooks for automated code quality and security checks:
+
+- **Terraform formatting**: Automatically formats `.tf` files
+- **Security scanning**: Runs Trivy and Checkov on Infrastructure as Code
+- **Secret detection**: Uses gitleaks to prevent committing secrets
+- **Code quality**: Validates YAML/JSON and removes trailing whitespace
+
+**Run manually:**
+```bash
+make pre-commit-run
+```
+
+### CI/CD Security Gates
+
+GitHub Actions workflows provide automated security scanning and validation:
+
+- **Security Scan**: Comprehensive security analysis on every push/PR
+- **Terraform Validation**: Infrastructure code validation and planning
+- **CI/CD Pipeline**: Combined quality gates and security checks
+- **Dependency Updates**: Automated dependency security monitoring
+
+**View security results**: Check the Security tab in GitHub for detailed scan results.
 
 A `terraform.tfvars.example` file is provided in the repository as a template. You can also use this as a reference for the required variables.
 

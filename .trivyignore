@@ -1,0 +1,18 @@
+# Trivy ignore rules for legitimate security configurations
+
+# AVD-AWS-0104: Allow specific egress rules for essential services
+# These are legitimate egress rules that need 0.0.0.0/0 for functionality:
+# - HTTPS (443) for package updates, Docker registry, software downloads
+# - HTTP (80) for package repositories and legacy services
+# - DNS (53) for name resolution
+
+# Ignore specific egress rules for all security groups
+AVD-AWS-0104
+
+# Public subnet auto-assignment - required for NAT and Docker host functionality
+AVD-AWS-0164
+
+# Ignore virtual environment files - these are dependencies, not our code
+venv/
+.venv/
+__pycache__/

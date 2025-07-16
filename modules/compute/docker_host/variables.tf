@@ -13,6 +13,11 @@ variable "vpc_id" {
   type        = string
 }
 
+variable "vpc_cidr" {
+  description = "CIDR block of the VPC"
+  type        = string
+}
+
 variable "allowed_ip" {
   description = "IP address allowed to connect to the Docker host"
   type        = string
@@ -46,5 +51,10 @@ variable "key_name" {
 
 variable "project_name" {
   description = "Name of the project"
+  type        = string
+}
+
+variable "kms_key_id" {
+  description = "KMS key ID for EBS encryption"
   type        = string
 }

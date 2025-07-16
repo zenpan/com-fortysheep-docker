@@ -35,4 +35,3 @@ data "aws_ami" "ubuntu" {
     values = ["arm64"]
   }
 }
-
