@@ -10,7 +10,12 @@
     postgres_password: "{{ vault_postgres_password | default('change_me_please') }}"
 
   tasks:
-    - name: Install required packages
+    - name: Wait for NAT instance to be ready
+      ansible.builtin.pause:
+        seconds: 60
+        prompt: "Waiting for NAT instance to complete initialization..."
+
+    - name: Install required packages (with retries)
       ansible.builtin.apt:
         name:
           - nvme-cli
@@ -20,6 +25,10 @@
           - python3-pexpect
         state: present
         update_cache: true
+      register: apt_result
+      until: apt_result is succeeded
+      retries: 3
+      delay: 30
 
     - name: Check if NVMe device exists
       ansible.builtin.stat:

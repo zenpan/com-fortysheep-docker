@@ -121,12 +121,21 @@ update-hosts: inventory  ## Update OS and reboot if necessary
 	@ansible-playbook -i inventory.yml playbooks/update-hosts.yml
 
 setup-database: inventory  ## Setup database instance with MariaDB and PostgreSQL
+	@echo "🔄 Testing database host connectivity..."
+	@ansible database -i inventory.yml -m ping --timeout=30 || { echo "❌ Database host not responsive. Check network connectivity."; exit 1; }
 	@ansible-playbook -i inventory.yml playbooks/setup-database.yml
 
 setup-docker: inventory  ## Setup Docker instance with Docker and Docker Compose
+	@echo "🔄 Testing docker host connectivity..."
+	@ansible docker -i inventory.yml -m ping --timeout=30 || { echo "❌ Docker host not responsive. Check network connectivity."; exit 1; }
 	@ansible-playbook -i inventory.yml playbooks/setup-docker.yml
 
 setup-all: inventory  ## Setup all instances (database and docker)
+	@echo "⏳ Waiting for instances to be ready..."
+	@sleep 60
+	@echo "🔄 Testing connectivity before setup..."
+	@ansible all -i inventory.yml -m ping --timeout=30 || { echo "❌ Connectivity test failed. Instances may still be initializing. Retrying in 60 seconds..."; sleep 60; }
+	@echo "✅ Starting setup (database setup includes NAT readiness wait)..."
 	@ansible-playbook -i inventory.yml playbooks/setup-database.yml
 	@ansible-playbook -i inventory.yml playbooks/setup-docker.yml
 

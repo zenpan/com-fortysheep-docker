@@ -25,9 +25,12 @@ iptables -P INPUT ACCEPT
 iptables -P FORWARD ACCEPT
 iptables -P OUTPUT ACCEPT
 
-# Configure NAT rules
-iptables -t nat -A POSTROUTING -o ens5 -j MASQUERADE
-iptables -A FORWARD -i ens5 -o ens5 -j ACCEPT
+# Configure NAT rules - Allow traffic from VPC CIDR to be masqueraded
+iptables -t nat -A POSTROUTING -s 10.0.0.0/16 -o ens5 -j MASQUERADE
+
+# Allow forwarding between private subnet and public interface
+iptables -A FORWARD -s 10.0.0.0/16 -o ens5 -j ACCEPT
+iptables -A FORWARD -d 10.0.0.0/16 -m state --state ESTABLISHED,RELATED -j ACCEPT
 
 # Allow established connections
 iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
@@ -40,6 +43,9 @@ iptables -A INPUT -i lo -j ACCEPT
 
 # Save iptables rules (Ubuntu uses iptables-persistent)
 iptables-save > /etc/iptables/rules.v4
+
+# Create rules.v6 file to prevent errors
+touch /etc/iptables/rules.v6
 
 # Ensure iptables rules are restored on boot (handled by netfilter-persistent)
 systemctl enable netfilter-persistent
